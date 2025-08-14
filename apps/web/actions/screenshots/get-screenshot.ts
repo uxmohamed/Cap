@@ -4,7 +4,7 @@ import { s3Buckets, videos } from "@cap/database/schema";
 import { buildEnv, serverEnv } from "@cap/env";
 import { S3_BUCKET_URL } from "@cap/utils";
 import { eq } from "drizzle-orm";
-import { createBucketProvider } from "@/utils/s3";
+// Storage adapter moved to Supabase; this action path may be updated later if needed.
 
 export async function getScreenshot(userId: string, screenshotId: string) {
 	if (!userId || !screenshotId) {

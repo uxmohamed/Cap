@@ -26,7 +26,7 @@ import {
 	UploadPartCommand,
 	type UploadPartCommandInput,
 } from "@aws-sdk/client-s3";
-import * as CloudFrontPresigner from "@aws-sdk/cloudfront-signer";
+// CloudFront presigning not needed when using Supabase Storage.
 import {
 	createPresignedPost,
 	type PresignedPost,
@@ -391,5 +391,5 @@ export async function createBucketProvider(
 		});
 	}
 
-	return createS3Provider(getClient, bucket);
+  return createS3Provider(getClient, bucket);
 }

@@ -11,7 +11,7 @@ import {
 import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createBucketProvider } from "@/utils/s3";
+// Storage utilities now use Supabase; no direct S3 usage here.
 
 export async function createOrganization(formData: FormData) {
 	const user = await getCurrentUser();

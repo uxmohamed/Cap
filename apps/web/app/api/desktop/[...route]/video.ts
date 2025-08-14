@@ -9,7 +9,7 @@ import { and, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { dub } from "@/utils/dub";
-import { createBucketProvider } from "@/utils/s3";
+// Supabase storage in use; no direct S3 provider required here.
 
 import { withAuth } from "../../utils";
 

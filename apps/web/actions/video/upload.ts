@@ -12,7 +12,7 @@ import { serverEnv } from "@cap/env";
 import { userIsPro } from "@cap/utils";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createBucketProvider } from "@/utils/s3";
+import { createSignedUpload } from "@/utils/storage";
 
 async function getVideoUploadPresignedUrl({
 	fileKey,
@@ -84,7 +84,7 @@ async function getVideoUploadPresignedUrl({
 			}
 		}
 
-		const bucket = await createBucketProvider(customBucket);
+        // Supabase signed upload only
 
 		const contentType = fileKey.endsWith(".aac")
 			? "audio/aac"
@@ -195,24 +195,18 @@ export async function createVideoAndGetUploadUrl({
 				const fileKey = `${user.id}/${videoId}/${
 					isScreenshot ? "screenshot/screen-capture.jpg" : "result.mp4"
 				}`;
-				const { presignedPostData } = await getVideoUploadPresignedUrl({
-					fileKey,
-					duration: duration?.toString(),
-					resolution,
-					videoCodec,
-					audioCodec,
-				});
+                const signed = await createSignedUpload(fileKey);
 
 				return {
 					id: existingVideo.id,
-					presignedPostData,
+                    presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
 				};
 			}
 		}
 
 		const idToUse = videoId || nanoId();
 
-		const bucket = await createBucketProvider(customBucket);
+        // No S3 bucket usage; using Supabase storage
 
 		const videoData = {
 			id: idToUse,
@@ -233,19 +227,13 @@ export async function createVideoAndGetUploadUrl({
 		const fileKey = `${user.id}/${idToUse}/${
 			isScreenshot ? "screenshot/screen-capture.jpg" : "result.mp4"
 		}`;
-		const { presignedPostData } = await getVideoUploadPresignedUrl({
-			fileKey,
-			duration: duration?.toString(),
-			resolution,
-			videoCodec,
-			audioCodec,
-		});
+        const signed = await createSignedUpload(fileKey);
 
 		revalidatePath("/dashboard/folder");
 
 		return {
 			id: idToUse,
-			presignedPostData,
+            presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
 		};
 	} catch (error) {
 		console.error("Error creating video and getting upload URL:", error);

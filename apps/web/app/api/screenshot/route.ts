@@ -6,7 +6,7 @@ import { S3_BUCKET_URL } from "@cap/utils";
 import { eq } from "drizzle-orm";
 import type { NextRequest } from "next/server";
 import { getHeaders } from "@/utils/helpers";
-import { createBucketProvider } from "@/utils/s3";
+// Supabase storage path; S3 removed.
 
 export const revalidate = 0;
 

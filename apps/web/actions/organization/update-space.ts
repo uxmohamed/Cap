@@ -7,7 +7,7 @@ import { spaceMembers, spaces } from "@cap/database/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
-import { createBucketProvider } from "@/utils/s3";
+// Supabase storage used for icons; s3 util removed.
 import { uploadSpaceIcon } from "./upload-space-icon";
 
 export async function updateSpace(formData: FormData) {

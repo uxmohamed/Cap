@@ -7,7 +7,7 @@ import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitizeFile } from "@/lib/sanitizeFile";
-import { createBucketProvider } from "@/utils/s3";
+// switched to Supabase storage signed uploads downstream
 
 export async function uploadSpaceIcon(formData: FormData, spaceId: string) {
 	const user = await getCurrentUser();

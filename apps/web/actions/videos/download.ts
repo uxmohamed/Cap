@@ -4,7 +4,7 @@ import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
 import { videos } from "@cap/database/schema";
 import { eq } from "drizzle-orm";
-import { createBucketProvider } from "@/utils/s3";
+// Supabase storage in use; adjust download to signed URL logic if needed.
 
 export async function downloadVideo(videoId: string) {
 	const user = await getCurrentUser();

@@ -4,7 +4,7 @@ import { serverEnv } from "@cap/env";
 import { createClient } from "@deepgram/sdk";
 import { eq } from "drizzle-orm";
 import { generateAiMetadata } from "@/actions/videos/generate-ai-metadata";
-import { createBucketProvider } from "@/utils/s3";
+// S3 provider removed; uploads served from Supabase Storage.
 
 type TranscribeResult = {
 	success: boolean;
