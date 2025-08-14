@@ -90,7 +90,7 @@ export const accounts = pgTable(
 	"accounts",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		userId: nanoId("userId").notNull(),
+		userId: nanoId("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		type: varchar("type", { length: 255 }).notNull(),
 		provider: varchar("provider", { length: 255 }).notNull(),
 		providerAccountId: varchar("providerAccountId", { length: 255 }).notNull(),
@@ -106,8 +106,8 @@ export const accounts = pgTable(
 		tempColumn: text("tempColumn"),
 	},
 	(table) => ({
-		userIdIndex: index("user_id_idx").on(table.userId),
-		providerAccountIdIndex: index("provider_account_id_idx").on(
+		userIdIndex: index("accounts_user_id_idx").on(table.userId),
+		providerAccountIdIndex: index("accounts_provider_account_id_idx").on(
 			table.providerAccountId,
 		),
 	}),
@@ -118,14 +118,14 @@ export const sessions = pgTable(
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
 		sessionToken: varchar("sessionToken", { length: 255 }).unique().notNull(),
-		userId: nanoId("userId").notNull(),
+		userId: nanoId("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		expires: timestamp("expires").notNull(),
 		created_at: timestamp("created_at").notNull().defaultNow(),
 		updated_at: timestamp("updated_at").notNull().defaultNow(),
 	},
 	(table) => ({
-		sessionTokenIndex: uniqueIndex("session_token_idx").on(table.sessionToken),
-		userIdIndex: index("user_id_idx").on(table.userId),
+		sessionTokenIndex: uniqueIndex("sessions_session_token_idx").on(table.sessionToken),
+		userIdIndex: index("sessions_user_id_idx").on(table.userId),
 	}),
 );
 
@@ -142,7 +142,7 @@ export const organizations = pgTable(
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
 		name: varchar("name", { length: 255 }).notNull(),
-		ownerId: nanoId("ownerId").notNull(),
+		ownerId: nanoId("ownerId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		metadata: jsonb("metadata"),
 		allowedEmailDomain: varchar("allowedEmailDomain", { length: 255 }),
 		customDomain: varchar("customDomain", { length: 255 }),
@@ -163,16 +163,16 @@ export const organizationMembers = pgTable(
 	"organization_members",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		userId: nanoId("userId").notNull(),
-		organizationId: nanoId("organizationId").notNull(),
+		userId: nanoId("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
+		organizationId: nanoId("organizationId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
 		role: varchar("role", { length: 255 }).notNull(),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
 		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 	},
 	(table) => ({
-		userIdIndex: index("user_id_idx").on(table.userId),
-		organizationIdIndex: index("organization_id_idx").on(table.organizationId),
-		userIdOrganizationIdIndex: index("user_id_organization_id_idx").on(
+		userIdIndex: index("org_members_user_id_idx").on(table.userId),
+		organizationIdIndex: index("org_members_organization_id_idx").on(table.organizationId),
+		userIdOrganizationIdIndex: index("org_members_user_id_organization_id_idx").on(
 			table.userId,
 			table.organizationId,
 		),
@@ -183,9 +183,9 @@ export const organizationInvites = pgTable(
 	"organization_invites",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		organizationId: nanoId("organizationId").notNull(),
+		organizationId: nanoId("organizationId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
 		invitedEmail: varchar("invitedEmail", { length: 255 }).notNull(),
-		invitedByUserId: nanoId("invitedByUserId").notNull(),
+		invitedByUserId: nanoId("invitedByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		role: varchar("role", { length: 255 }).notNull(),
 		status: varchar("status", { length: 255 }).notNull().default("pending"),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
@@ -193,12 +193,12 @@ export const organizationInvites = pgTable(
 		expiresAt: timestamp("expiresAt"),
 	},
 	(table) => ({
-		organizationIdIndex: index("organization_id_idx").on(table.organizationId),
-		invitedEmailIndex: index("invited_email_idx").on(table.invitedEmail),
-		invitedByUserIdIndex: index("invited_by_user_id_idx").on(
+		organizationIdIndex: index("org_invites_organization_id_idx").on(table.organizationId),
+		invitedEmailIndex: index("org_invites_invited_email_idx").on(table.invitedEmail),
+		invitedByUserIdIndex: index("org_invites_invited_by_user_id_idx").on(
 			table.invitedByUserId,
 		),
-		statusIndex: index("status_idx").on(table.status),
+		statusIndex: index("org_invites_status_idx").on(table.status),
 	}),
 );
 
@@ -210,18 +210,18 @@ export const folders = pgTable(
 		color: varchar("color", { length: 16 })
 			.notNull()
 			.default("normal"),
-		organizationId: nanoId("organizationId").notNull(),
-		createdById: nanoId("createdById").notNull(),
-		parentId: nanoIdNullable("parentId").$type<Folder.FolderId | null>(),
-		spaceId: nanoIdNullable("spaceId"),
+		organizationId: nanoId("organizationId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		createdById: nanoId("createdById").notNull().references(() => users.id, { onDelete: "cascade" }),
+		parentId: nanoIdNullable("parentId").$type<Folder.FolderId | null>().references(() => folders.id, { onDelete: "set null" }),
+		spaceId: nanoIdNullable("spaceId").references(() => spaces.id, { onDelete: "set null" }),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
 		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 	},
 	(table) => ({
-		organizationIdIndex: index("organization_id_idx").on(table.organizationId),
-		createdByIdIndex: index("created_by_id_idx").on(table.createdById),
-		parentIdIndex: index("parent_id_idx").on(table.parentId),
-		spaceIdIndex: index("space_id_idx").on(table.spaceId),
+		organizationIdIndex: index("folders_organization_id_idx").on(table.organizationId),
+		createdByIdIndex: index("folders_created_by_id_idx").on(table.createdById),
+		parentIdIndex: index("folders_parent_id_idx").on(table.parentId),
+		spaceIdIndex: index("folders_space_id_idx").on(table.spaceId),
 	}),
 );
 
@@ -229,7 +229,7 @@ export const videos = pgTable(
 	"videos",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		ownerId: nanoId("ownerId").notNull(),
+		ownerId: nanoId("ownerId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		name: varchar("name", { length: 255 }).notNull().default("My Video"),
 		bucket: nanoIdNullable("bucket"),
 		metadata: jsonb("metadata").$type<VideoMetadata>(),
@@ -243,7 +243,7 @@ export const videos = pgTable(
 			>()
 			.notNull()
 			.default({ type: "MediaConvert" }),
-		folderId: nanoIdNullable("folderId"),
+		folderId: nanoIdNullable("folderId").references(() => folders.id, { onDelete: "set null" }),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
 		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 		// PRIVATE
@@ -261,10 +261,10 @@ export const videos = pgTable(
 		skipProcessing: boolean("skipProcessing").notNull().default(false),
 	},
 	(table) => ({
-		idIndex: index("id_idx").on(table.id),
-		ownerIdIndex: index("owner_id_idx").on(table.ownerId),
-		publicIndex: index("is_public_idx").on(table.public),
-		folderIdIndex: index("folder_id_idx").on(table.folderId),
+		idIndex: index("videos_id_idx").on(table.id),
+		ownerIdIndex: index("videos_owner_id_idx").on(table.ownerId),
+		publicIndex: index("videos_is_public_idx").on(table.public),
+		folderIdIndex: index("videos_folder_id_idx").on(table.folderId),
 	}),
 );
 
@@ -272,18 +272,18 @@ export const sharedVideos = pgTable(
 	"shared_videos",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		videoId: nanoId("videoId").notNull(),
-		organizationId: nanoId("organizationId").notNull(),
-		sharedByUserId: nanoId("sharedByUserId").notNull(),
+		videoId: nanoId("videoId").notNull().references(() => videos.id, { onDelete: "cascade" }),
+		organizationId: nanoId("organizationId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		sharedByUserId: nanoId("sharedByUserId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		sharedAt: timestamp("sharedAt").notNull().defaultNow(),
 	},
 	(table) => ({
-		videoIdIndex: index("video_id_idx").on(table.videoId),
-		organizationIdIndex: index("organization_id_idx").on(table.organizationId),
-		sharedByUserIdIndex: index("shared_by_user_id_idx").on(
+		videoIdIndex: index("shared_videos_video_id_idx").on(table.videoId),
+		organizationIdIndex: index("shared_videos_organization_id_idx").on(table.organizationId),
+		sharedByUserIdIndex: index("shared_videos_shared_by_user_id_idx").on(
 			table.sharedByUserId,
 		),
-		videoIdOrganizationIdIndex: index("video_id_organization_id_idx").on(
+		videoIdOrganizationIdIndex: index("shared_videos_video_id_organization_id_idx").on(
 			table.videoId,
 			table.organizationId,
 		),
@@ -297,16 +297,16 @@ export const comments = pgTable(
 		type: varchar("type", { length: 6 }).notNull(),
 		content: text("content").notNull(),
 		timestamp: real("timestamp"),
-		authorId: nanoId("authorId").notNull(),
-		videoId: nanoId("videoId").notNull(),
+		authorId: nanoId("authorId").notNull().references(() => users.id, { onDelete: "cascade" }),
+		videoId: nanoId("videoId").notNull().references(() => videos.id, { onDelete: "cascade" }),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
 		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-		parentCommentId: nanoId("parentCommentId"),
+		parentCommentId: nanoId("parentCommentId").references(() => comments.id, { onDelete: "cascade" }),
 	},
 	(table) => ({
-		videoIdIndex: index("video_id_idx").on(table.videoId),
-		authorIdIndex: index("author_id_idx").on(table.authorId),
-		parentCommentIdIndex: index("parent_comment_id_idx").on(
+		videoIdIndex: index("comments_video_id_idx").on(table.videoId),
+		authorIdIndex: index("comments_author_id_idx").on(table.authorId),
+		parentCommentIdIndex: index("comments_parent_comment_id_idx").on(
 			table.parentCommentId,
 		),
 	}),
@@ -316,8 +316,8 @@ export const notifications = pgTable(
 	"notifications",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		orgId: nanoId("orgId").notNull(),
-		recipientId: nanoId("recipientId").notNull(),
+		orgId: nanoId("orgId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		recipientId: nanoId("recipientId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		type: varchar("type", { length: 10 })
 			.notNull()
 			.$type<"view" | "comment" | "reply" | "reaction" /*| "mention"*/>(),
@@ -353,7 +353,7 @@ export const notifications = pgTable(
 
 export const s3Buckets = pgTable("s3_buckets", {
 	id: nanoId("id").notNull().primaryKey().unique(),
-	ownerId: nanoId("ownerId").notNull(),
+	ownerId: nanoId("ownerId").notNull().references(() => users.id, { onDelete: "cascade" }),
 	// Use encryptedText for sensitive fields
 	region: encryptedText("region").notNull(),
 	endpoint: encryptedTextNullable("endpoint"),
@@ -365,7 +365,7 @@ export const s3Buckets = pgTable("s3_buckets", {
 
 export const authApiKeys = pgTable("auth_api_keys", {
 	id: varchar("id", { length: 36 }).notNull().primaryKey().unique(),
-	userId: nanoId("userId").notNull(),
+	userId: nanoId("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
 	createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -375,8 +375,8 @@ export const spaces = pgTable(
 		id: nanoId("id").notNull().primaryKey().unique(),
 		primary: boolean("primary").notNull().default(false),
 		name: varchar("name", { length: 255 }).notNull(),
-		organizationId: nanoId("organizationId").notNull(),
-		createdById: nanoId("createdById").notNull(),
+		organizationId: nanoId("organizationId").notNull().references(() => organizations.id, { onDelete: "cascade" }),
+		createdById: nanoId("createdById").notNull().references(() => users.id, { onDelete: "cascade" }),
 		iconUrl: varchar("iconUrl", { length: 255 }),
 		description: varchar("description", { length: 1000 }),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
@@ -386,8 +386,8 @@ export const spaces = pgTable(
 			.default("Private"),
 	},
 	(table) => ({
-		organizationIdIndex: index("organization_id_idx").on(table.organizationId),
-		createdByIdIndex: index("created_by_id_idx").on(table.createdById),
+		organizationIdIndex: index("spaces_organization_id_idx").on(table.organizationId),
+		createdByIdIndex: index("spaces_created_by_id_idx").on(table.createdById),
 	}),
 );
 
@@ -395,16 +395,16 @@ export const spaceMembers = pgTable(
 	"space_members",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		spaceId: nanoId("spaceId").notNull(),
-		userId: nanoId("userId").notNull(),
+		spaceId: nanoId("spaceId").notNull().references(() => spaces.id, { onDelete: "cascade" }),
+		userId: nanoId("userId").notNull().references(() => users.id, { onDelete: "cascade" }),
 		role: varchar("role", { length: 255 }).notNull().default("member"),
 		createdAt: timestamp("createdAt").notNull().defaultNow(),
 		updatedAt: timestamp("updatedAt").notNull().defaultNow(),
 	},
 	(table) => ({
-		spaceIdIndex: index("space_id_idx").on(table.spaceId),
-		userIdIndex: index("user_id_idx").on(table.userId),
-		spaceIdUserIdIndex: index("space_id_user_id_idx").on(
+		spaceIdIndex: index("space_members_space_id_idx").on(table.spaceId),
+		userIdIndex: index("space_members_user_id_idx").on(table.userId),
+		spaceIdUserIdIndex: index("space_members_space_id_user_id_idx").on(
 			table.spaceId,
 			table.userId,
 		),
@@ -415,18 +415,18 @@ export const spaceVideos = pgTable(
 	"space_videos",
 	{
 		id: nanoId("id").notNull().primaryKey().unique(),
-		spaceId: nanoId("spaceId").notNull(),
-		folderId: nanoIdNullable("folderId"),
-		videoId: nanoId("videoId").notNull(),
-		addedById: nanoId("addedById").notNull(),
+		spaceId: nanoId("spaceId").notNull().references(() => spaces.id, { onDelete: "cascade" }),
+		folderId: nanoIdNullable("folderId").references(() => folders.id, { onDelete: "set null" }),
+		videoId: nanoId("videoId").notNull().references(() => videos.id, { onDelete: "cascade" }),
+		addedById: nanoId("addedById").notNull().references(() => users.id, { onDelete: "cascade" }),
 		addedAt: timestamp("addedAt").notNull().defaultNow(),
 	},
 	(table) => ({
-		spaceIdIndex: index("space_id_idx").on(table.spaceId),
-		folderIdIndex: index("folder_id_idx").on(table.folderId),
-		videoIdIndex: index("video_id_idx").on(table.videoId),
-		addedByIdIndex: index("added_by_id_idx").on(table.addedById),
-		spaceIdVideoIdIndex: index("space_id_video_id_idx").on(
+		spaceIdIndex: index("space_videos_space_id_idx").on(table.spaceId),
+		folderIdIndex: index("space_videos_folder_id_idx").on(table.folderId),
+		videoIdIndex: index("space_videos_video_id_idx").on(table.videoId),
+		addedByIdIndex: index("space_videos_added_by_id_idx").on(table.addedById),
+		spaceIdVideoIdIndex: index("space_videos_space_id_video_id_idx").on(
 			table.spaceId,
 			table.videoId,
 		),
