@@ -1,33 +1,25 @@
-import { serverEnv } from "@cap/env";
-import { Client, type Config } from "@planetscale/database";
-import { drizzle } from "drizzle-orm/planetscale-serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "./schema-postgres";
 
-function createDrizzle() {
-	const URL = serverEnv().DATABASE_URL;
+const connectionString = process.env.DATABASE_URL;
 
-	let fetchHandler: Promise<Config["fetch"]> | undefined;
-
-	if (URL.startsWith("mysql://")) {
-		fetchHandler = import("@mattrax/mysql-planetscale").then((m) =>
-			m.createFetchHandler(URL),
-		);
-	}
-
-	const connection = new Client({
-		url: URL,
-		fetch: async (input, init) => {
-			return await ((await fetchHandler) || fetch)(input, init);
-		},
-	});
-
-	return drizzle(connection);
+if (!connectionString) {
+	throw new Error("DATABASE_URL is not set");
 }
 
-let _cached: ReturnType<typeof createDrizzle> | undefined;
+// For Supabase, we can directly use the postgres connection string
+const client = postgres(connectionString, {
+	prepare: false,
+});
+
+let _cached: ReturnType<typeof drizzle> | undefined;
 
 export const db = () => {
 	if (!_cached) {
-		_cached = createDrizzle();
+		_cached = drizzle(client, { schema });
 	}
 	return _cached;
 };
+
+export * from "./schema-postgres";
