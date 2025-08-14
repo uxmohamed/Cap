@@ -10,7 +10,7 @@ import { zValidator } from "@hono/zod-validator";
 import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { createBucketProvider } from "@/utils/s3";
+import { createSignedUpload } from "@/utils/storage";
 import { withAuth } from "../../utils";
 import { parseVideoIdOrFileKey } from "../utils";
 
@@ -119,40 +119,9 @@ app.post(
 								? "application/x-mpegURL"
 								: "video/mp2t";
 
-			const bucket = await createBucketProvider(customBucket);
-
-			let data;
-			if (method === "post") {
-				const Fields = {
-					"Content-Type": contentType,
-					"x-amz-meta-userid": user.id,
-					"x-amz-meta-duration": duration ?? "",
-					"x-amz-meta-bandwidth": bandwidth ?? "",
-					"x-amz-meta-resolution": resolution ?? "",
-					"x-amz-meta-videocodec": videoCodec ?? "",
-					"x-amz-meta-audiocodec": audioCodec ?? "",
-				};
-
-				data = bucket.getPresignedPostUrl(fileKey, { Fields, Expires: 1800 });
-			} else if (method === "put") {
-				const presignedUrl = await bucket.getPresignedPutUrl(
-					fileKey,
-					{
-						ContentType: contentType,
-						Metadata: {
-							userid: user.id,
-							duration: duration ?? "",
-							bandwidth: bandwidth ?? "",
-							resolution: resolution ?? "",
-							videocodec: videoCodec ?? "",
-							audiocodec: audioCodec ?? "",
-						},
-					},
-					{ expiresIn: 1800 },
-				);
-
-				data = { url: presignedUrl, fields: {} };
-			}
+            // Supabase signed upload (one-shot). Keep response shape backward compatible.
+            const signed = await createSignedUpload(fileKey);
+            const data = { url: signed.signedUrl, fields: { token: signed.token } };
 
 			console.log("Presigned URL created successfully");
 

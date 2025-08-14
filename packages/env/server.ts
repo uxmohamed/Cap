@@ -17,6 +17,8 @@ function createServerEnv() {
 			WEB_URL: z.string(),
 			DATABASE_MIGRATION_URL: z.string().optional(),
 			DATABASE_ENCRYPTION_KEY: z.string().optional(),
+			// Supabase (server-only)
+			SUPABASE_SERVICE_ROLE: z.string().optional(),
 			S3_PATH_STYLE: boolString(true),
 			CAP_AWS_BUCKET: z.string(),
 			CAP_AWS_REGION: z.string(),

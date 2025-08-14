@@ -11,6 +11,7 @@
 		"compress-images": "bash tools/compress-images.sh"
 	},
 	"dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
 		"@aws-sdk/client-cloudfront": "^3.565.0",
 		"@aws-sdk/client-mediaconvert": "^3.565.0",
 		"@aws-sdk/client-s3": "^3.485.0",

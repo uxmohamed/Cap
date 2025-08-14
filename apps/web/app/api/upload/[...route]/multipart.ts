@@ -7,7 +7,7 @@ import { eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
 import { withAuth } from "@/app/api/utils";
-import { createBucketProvider } from "@/utils/s3";
+import { createSignedUpload } from "@/utils/storage";
 import { parseVideoIdOrFileKey } from "../utils";
 
 export const app = new Hono().use(withAuth);
@@ -35,34 +35,10 @@ app.post(
 
 		try {
 			try {
-				const { bucket } = await getUserBucketWithClient(user.id);
-
-				const finalContentType = contentType || "video/mp4";
-				console.log(
-					`Creating multipart upload in bucket: ${bucket.name}, content-type: ${finalContentType}, key: ${fileKey}`,
-				);
-
-				const { UploadId } = await bucket.multipart.create(fileKey, {
-					ContentType: finalContentType,
-					Metadata: {
-						userId: user.id,
-						source: "cap-multipart-upload",
-					},
-					CacheControl: "max-age=31536000",
-				});
-
-				if (!UploadId) {
-					throw new Error("No UploadId returned from S3");
-				}
-
-				console.log(
-					`Successfully initiated multipart upload with ID: ${UploadId}`,
-				);
-				console.log(
-					`Upload details: Bucket=${bucket.name}, Key=${fileKey}, ContentType=${finalContentType}`,
-				);
-
-				return c.json({ uploadId: UploadId });
+                // Supabase: return synthetic uploadId (the key). Client should PUT using signed URL.
+                const finalContentType = contentType || "video/mp4";
+                const signed = await createSignedUpload(fileKey);
+                return c.json({ uploadId: fileKey, signedUrl: signed.signedUrl, token: signed.token, contentType: finalContentType });
 			} catch (s3Error) {
 				console.error("S3 operation failed:", s3Error);
 				throw new Error(
@@ -113,20 +89,9 @@ app.post(
 
 		try {
 			try {
-				const { bucket } = await getUserBucketWithClient(user.id);
-
-				console.log(
-					`Getting presigned URL for part ${partNumber} of upload ${uploadId}`,
-				);
-
-				const presignedUrl = await bucket.multipart.getPresignedUploadPartUrl(
-					fileKey,
-					uploadId,
-					partNumber,
-					{ ContentMD5: md5Sum },
-				);
-
-				return c.json({ presignedUrl });
+                // For Supabase single PUT flow, always return signed upload URL for whole file
+                const signed = await createSignedUpload(fileKey);
+                return c.json({ presignedUrl: signed.signedUrl, token: signed.token });
 			} catch (s3Error) {
 				console.error("S3 operation failed:", s3Error);
 				throw new Error(
@@ -188,53 +153,8 @@ app.post(
 
 		try {
 			try {
-				const { bucket } = await getUserBucketWithClient(user.id);
-
-				console.log(
-					`Completing multipart upload ${uploadId} with ${parts.length} parts for key: ${fileKey}`,
-				);
-
-				const totalSize = parts.reduce((acc, part) => acc + part.size, 0);
-				console.log(`Total size of all parts: ${totalSize} bytes`);
-
-				const sortedParts = [...parts].sort(
-					(a, b) => a.partNumber - b.partNumber,
-				);
-
-				const sequentialCheck = sortedParts.every(
-					(part, index) => part.partNumber === index + 1,
-				);
-
-				if (!sequentialCheck) {
-					console.warn(
-						"WARNING: Part numbers are not sequential! This may cause issues with the assembled file.",
-					);
-				}
-
-				const formattedParts = sortedParts.map((part) => ({
-					PartNumber: part.partNumber,
-					ETag: part.etag,
-				}));
-
-				console.log(
-					"Sending to S3:",
-					JSON.stringify(
-						{
-							Bucket: bucket.name,
-							Key: fileKey,
-							UploadId: uploadId,
-							Parts: formattedParts,
-						},
-						null,
-						2,
-					),
-				);
-
-				const result = await bucket.multipart.complete(fileKey, uploadId, {
-					MultipartUpload: {
-						Parts: formattedParts,
-					},
-				});
+                // Supabase: nothing to complete server-side. Consider object already uploaded.
+                const result = { Location: fileKey } as any;
 
 				try {
 					console.log(
@@ -292,7 +212,7 @@ app.post(
 							})
 							.where(eq(videos.id, body.videoId));
 
-					const videoIdFromFileKey = fileKey.split("/")[1];
+                    const videoIdFromFileKey = fileKey.split("/")[1];
 					if (videoIdFromFileKey) {
 						try {
 							await fetch(`${serverEnv().WEB_URL}/api/revalidate`, {
