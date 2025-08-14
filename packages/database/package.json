@@ -27,6 +27,7 @@
 		"nanoid": "^5.0.4",
 		"next": "14.2.9",
 		"next-auth": "^4.24.5",
+		"postgres": "^3.4.7",
 		"react-email": "^4.0.16",
 		"resend": "4.6.0",
 		"zod": "^3"

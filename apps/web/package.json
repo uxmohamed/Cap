@@ -57,6 +57,7 @@
 		"@remotion/webcodecs": "^4.0.291",
 		"@rive-app/react-canvas": "^4.18.7",
 		"@stripe/stripe-js": "^3.3.0",
+		"@supabase/ssr": "^0.6.1",
 		"@t3-oss/env-nextjs": "^0.12.0",
 		"@tanstack/react-query": "^5.75.4",
 		"@tanstack/react-store": "^0.5.5",
