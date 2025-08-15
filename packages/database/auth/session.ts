@@ -2,7 +2,7 @@ import { eq, type InferSelectModel } from "drizzle-orm";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { db } from "../";
-import { users } from "../schema";
+import { users } from "../schema-postgres";
 
 export const getSession = async () => {
 	const { userId } = await auth();

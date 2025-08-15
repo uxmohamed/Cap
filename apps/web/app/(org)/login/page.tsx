@@ -30,7 +30,7 @@ export default async function LoginPage() {
 						card: "shadow-none bg-transparent",
 					}
 				}}
-				redirectUrl="/dashboard"
+				fallbackRedirectUrl="/dashboard"
 			/>
 		</div>
 	);

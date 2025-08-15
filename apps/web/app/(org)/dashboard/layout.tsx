@@ -25,6 +25,7 @@ export default async function DashboardLayout({
 		
 		let user = await getCurrentUser();
 		console.log("👤 Current user from DB:", user ? "found" : "not found");
+		console.log("👤 User details:", user ? { id: user.id, email: user.email, name: user.name } : "null");
 
 		if (!user || !user.id) {
 			console.log("🔄 User not in DB, attempting sync...");
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
 			try {
 				user = await syncUserWithDatabase();
 				console.log("🔄 Sync result:", user ? "success" : "failed");
+				console.log("🔄 Synced user details:", user ? { id: user.id, email: user.email, name: user.name } : "null");
 			} catch (syncError) {
 				console.error("❌ Error syncing user:", syncError);
 			}

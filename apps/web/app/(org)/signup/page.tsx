@@ -30,7 +30,7 @@ export default async function SignUpPage() {
 						card: "shadow-none bg-transparent",
 					}
 				}}
-				redirectUrl="/dashboard"
+				fallbackRedirectUrl="/dashboard"
 			/>
 		</div>
 	);
