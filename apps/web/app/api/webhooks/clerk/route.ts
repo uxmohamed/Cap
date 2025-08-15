@@ -61,41 +61,61 @@ export async function POST(req: Request) {
 		case 'user.created':
 			const user = evt.data;
 			
-			// Create user in database
-			await db().insert(users).values({
-				id: user.id,
-				email: user.email_addresses[0]?.email_address || "",
-				emailVerified: user.email_addresses[0]?.verification?.status === "verified",
-				name: user.first_name || "",
-				lastName: user.last_name || "",
-				image: user.image_url || "",
-				activeOrganizationId: "",
-			});
+			// Create user in database with all required fields
+			try {
+				await db().insert(users).values({
+					id: user.id,
+					email: user.email_addresses[0]?.email_address || "",
+					emailVerified: user.email_addresses[0]?.verification?.status === "verified" ? new Date() : null,
+					name: user.first_name || "",
+					lastName: user.last_name || "",
+					image: user.image_url || "",
+					activeOrganizationId: "",
+					stripeCustomerId: null,
+					stripeSubscriptionId: null,
+					stripeSubscriptionStatus: null,
+					thirdPartyStripeSubscriptionId: null,
+					inviteQuota: 0,
+				});
+				console.log(`User created in database: ${user.id}`);
+			} catch (error) {
+				console.error('Error creating user in database:', error);
+			}
 			break;
 			
 		case 'user.updated':
 			const updatedUser = evt.data;
 			
 			// Update user in database
-			await db()
-				.update(users)
-				.set({
-					email: updatedUser.email_addresses[0]?.email_address || "",
-					emailVerified: updatedUser.email_addresses[0]?.verification?.status === "verified",
-					name: updatedUser.first_name || "",
-					lastName: updatedUser.last_name || "",
-					image: updatedUser.image_url || "",
-				})
-				.where(eq(users.id, updatedUser.id));
+			try {
+				await db()
+					.update(users)
+					.set({
+						email: updatedUser.email_addresses[0]?.email_address || "",
+						emailVerified: updatedUser.email_addresses[0]?.verification?.status === "verified" ? new Date() : null,
+						name: updatedUser.first_name || "",
+						lastName: updatedUser.last_name || "",
+						image: updatedUser.image_url || "",
+					})
+					.where(eq(users.id, updatedUser.id));
+				console.log(`User updated in database: ${updatedUser.id}`);
+			} catch (error) {
+				console.error('Error updating user in database:', error);
+			}
 			break;
 			
 		case 'user.deleted':
 			const deletedUser = evt.data;
 			
 			// Delete user from database
-			await db()
-				.delete(users)
-				.where(eq(users.id, deletedUser.id));
+			try {
+				await db()
+					.delete(users)
+					.where(eq(users.id, deletedUser.id));
+				console.log(`User deleted from database: ${deletedUser.id}`);
+			} catch (error) {
+				console.error('Error deleting user from database:', error);
+			}
 			break;
 			
 		default:

@@ -1,4 +1,4 @@
-import { getCurrentUser } from "@cap/database/auth/session";
+import { getCurrentUser, syncUserWithDatabase } from "@cap/database/auth/session";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import DashboardInner from "./_components/DashboardInner";
@@ -21,10 +21,19 @@ export default async function DashboardLayout({
 	children: React.ReactNode;
 }) {
 	try {
-		const user = await getCurrentUser();
+		let user = await getCurrentUser();
 
 		if (!user || !user.id) {
-			redirect("/login");
+			// Try to sync user from Clerk
+			try {
+				user = await syncUserWithDatabase();
+			} catch (syncError) {
+				console.error("Error syncing user:", syncError);
+			}
+			
+			if (!user || !user.id) {
+				redirect("/login");
+			}
 		}
 
 		if (!user.name || user.name.length <= 1) {
