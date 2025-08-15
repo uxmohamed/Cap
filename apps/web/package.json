@@ -11,7 +11,6 @@
 		"compress-images": "bash tools/compress-images.sh"
 	},
 	"dependencies": {
-    "@supabase/supabase-js": "^2.45.0",
 		"@aws-sdk/client-cloudfront": "^3.565.0",
 		"@aws-sdk/client-mediaconvert": "^3.565.0",
 		"@aws-sdk/client-s3": "^3.485.0",
@@ -26,6 +25,7 @@
 		"@cap/web-api-contract-effect": "workspace:*",
 		"@cap/web-backend": "workspace:*",
 		"@cap/web-domain": "workspace:*",
+		"@clerk/nextjs": "^6.31.1",
 		"@deepgram/sdk": "^3.3.4",
 		"@dub/analytics": "^0.0.27",
 		"@effect/opentelemetry": "^0.56.1",
@@ -37,7 +37,6 @@
 		"@headlessui/react": "^1.7.17",
 		"@hono/zod-validator": "^0.4.3",
 		"@hookform/resolvers": "^3.3.2",
-		"@intercom/messenger-js-sdk": "^0.0.14",
 		"@mux/mux-node": "^8.5.1",
 		"@mux/mux-player-react": "^3.3.0",
 		"@number-flow/react": "^0.5.9",
@@ -59,6 +58,7 @@
 		"@rive-app/react-canvas": "^4.18.7",
 		"@stripe/stripe-js": "^3.3.0",
 		"@supabase/ssr": "^0.6.1",
+		"@supabase/supabase-js": "^2.45.0",
 		"@t3-oss/env-nextjs": "^0.12.0",
 		"@tanstack/react-query": "^5.75.4",
 		"@tanstack/react-store": "^0.5.5",
@@ -113,7 +113,7 @@
 		"server-only": "^0.0.1",
 		"sonner": "^2.0.3",
 		"subtitles-parser-vtt": "^0.1.0",
-		"tailwind-merge": "^2.6.0",
+		"tailwind-merge": "^3.3.1",
 		"tailwindcss-animate": "^1.0.7",
 		"uuid": "^9.0.1",
 		"zod": "^3.25.76"
@@ -134,7 +134,7 @@
 		"eslint": "^9.30.1",
 		"eslint-config-next": "14.1.0",
 		"postcss": "^8.4.23",
-		"tailwindcss": "^3",
+		"tailwindcss": "^3.4.0",
 		"typescript": "^5.8.3"
 	},
 	"engines": {

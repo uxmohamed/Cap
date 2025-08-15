@@ -1,7 +1,5 @@
 import "@/app/globals.css";
-import { getCurrentUser } from "@cap/database/auth/session";
 import { buildEnv } from "@cap/env";
-import { S3_BUCKET_URL } from "@cap/utils";
 import { Analytics as DubAnalytics } from "@dub/analytics/react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import type { Metadata } from "next";
@@ -10,12 +8,11 @@ import type { PropsWithChildren } from "react";
 import { SonnerToaster } from "@/components/SonnerToastProvider";
 import { getBootstrapData } from "@/utils/getBootstrapData";
 import { PublicEnvContext } from "@/utils/public-env";
-import { AuthContextProvider } from "./Layout/AuthContext";
+import { ClerkProvider } from "@clerk/nextjs";
 import { PosthogIdentify } from "./Layout/PosthogIdentify";
 import {
 	PostHogProvider,
 	ReactQueryProvider,
-	SessionProvider,
 } from "./Layout/providers";
 //@ts-expect-error
 import { script } from "./themeScript";
@@ -73,7 +70,6 @@ export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: PropsWithChildren) {
 	const bootstrapData = await getBootstrapData();
-	const userPromise = getCurrentUser();
 
 	return (
 		<html className={defaultFont.className} lang="en">
@@ -106,25 +102,23 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 					dangerouslySetInnerHTML={{ __html: `(${script.toString()})()` }}
 				/>
 				<TooltipPrimitive.Provider>
-					<PostHogProvider bootstrapData={bootstrapData}>
-						<AuthContextProvider user={userPromise}>
-							<SessionProvider>
-								<PublicEnvContext
-									value={{
-										webUrl: buildEnv.NEXT_PUBLIC_WEB_URL,
-										awsBucket: buildEnv.NEXT_PUBLIC_CAP_AWS_BUCKET,
-										s3BucketUrl: S3_BUCKET_URL,
-									}}
-								>
-									<ReactQueryProvider>
-										<SonnerToaster />
-										<main className="w-full">{children}</main>
-										<PosthogIdentify />
-									</ReactQueryProvider>
-								</PublicEnvContext>
-							</SessionProvider>
-						</AuthContextProvider>
-					</PostHogProvider>
+					<ClerkProvider>
+						<PostHogProvider bootstrapData={bootstrapData}>
+							<PublicEnvContext
+								value={{
+									webUrl: buildEnv.NEXT_PUBLIC_WEB_URL,
+									supabaseUrl: buildEnv.NEXT_PUBLIC_SUPABASE_URL,
+									supabaseStorageBucket: buildEnv.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET,
+								}}
+							>
+								<ReactQueryProvider>
+									<SonnerToaster />
+									<main className="w-full">{children}</main>
+									<PosthogIdentify />
+								</ReactQueryProvider>
+							</PublicEnvContext>
+						</PostHogProvider>
+					</ClerkProvider>
 				</TooltipPrimitive.Provider>
 				{buildEnv.NEXT_PUBLIC_IS_CAP && (
 					<DubAnalytics

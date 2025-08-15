@@ -19,17 +19,14 @@ function createServerEnv() {
 			DATABASE_ENCRYPTION_KEY: z.string().optional(),
 			// Supabase (server-only)
 			SUPABASE_SERVICE_ROLE: z.string().optional(),
-			S3_PATH_STYLE: boolString(true),
-			CAP_AWS_BUCKET: z.string(),
-			CAP_AWS_REGION: z.string(),
-			CAP_AWS_BUCKET_URL: z.string().optional(),
-			CAP_AWS_ACCESS_KEY: z.string(),
-			CAP_AWS_SECRET_KEY: z.string(),
-			CAP_AWS_ENDPOINT: z.string().optional(),
-			CAP_AWS_MEDIACONVERT_ROLE_ARN: z.string().optional(),
-			CAP_CLOUDFRONT_DISTRIBUTION_ID: z.string().optional(),
-			NEXTAUTH_SECRET: z.string(),
-			NEXTAUTH_URL: z.string(),
+			// Supabase Storage Configuration
+			SUPABASE_STORAGE_BUCKET: z.string().optional(),
+			// Clerk Authentication
+			CLERK_SECRET_KEY: z.string(),
+			// NextAuth (to be removed after migration)
+			NEXTAUTH_SECRET: z.string().optional(),
+			NEXTAUTH_URL: z.string().optional(),
+			// Optional integrations
 			GOOGLE_CLIENT_ID: z.string().optional(),
 			GOOGLE_CLIENT_SECRET: z.string().optional(),
 			WORKOS_CLIENT_ID: z.string().optional(),
@@ -63,10 +60,6 @@ function createServerEnv() {
 			VERCEL_PROJECT_PRODUCTION_URL_HOST: z.string().optional(),
 			DOCKER_BUILD: z.string().optional(),
 			POSTHOG_PERSONAL_API_KEY: z.string().optional(),
-			CLOUDFRONT_KEYPAIR_ID: z.string().optional(),
-			CLOUDFRONT_KEYPAIR_PRIVATE_KEY: z.string().optional(),
-			S3_PUBLIC_ENDPOINT: z.string().optional(),
-			S3_INTERNAL_ENDPOINT: z.string().optional(),
 		},
 		experimental__runtimeEnv: {
 			...process.env,

@@ -37,8 +37,5 @@
 	"name": "cap",
 	"engines": {
 		"node": "20"
-	},
-	"dependencies": {
-		"@tailwindcss/postcss": "^4.1.12"
 	}
 }

@@ -1,8 +1,9 @@
 import { db } from "@cap/database";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { eq } from "drizzle-orm";
 import { ImageResponse } from "next/og";
-import { createBucketProvider } from "@/utils/s3";
+import { createClient } from "@supabase/supabase-js";
+import { buildEnv } from "@cap/env";
 
 export async function generateVideoOgImage(videoId: string) {
 	const videoData = await getData(videoId);
@@ -57,13 +58,19 @@ export async function generateVideoOgImage(videoId: string) {
 		);
 	}
 
-	const bucket = await createBucketProvider(videoData.bucket);
+	const supabase = createClient(
+		buildEnv.NEXT_PUBLIC_SUPABASE_URL,
+		buildEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+	);
 
 	const screenshotKey = `${video.ownerId}/${video.id}/screenshot/screen-capture.jpg`;
 	let screenshotUrl = null;
 
 	try {
-		screenshotUrl = await bucket.getSignedObjectUrl(screenshotKey);
+		const { data } = supabase.storage
+			.from("capso-videos")
+			.getPublicUrl(screenshotKey);
+		screenshotUrl = data.publicUrl;
 	} catch (error) {
 		console.error("Error generating URL for screenshot:", error);
 	}
@@ -149,10 +156,8 @@ async function getData(videoId: string) {
 	const query = await db()
 		.select({
 			video: videos,
-			bucket: s3Buckets,
 		})
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, videoId));
 
 	const result = query[0];
@@ -161,6 +166,5 @@ async function getData(videoId: string) {
 
 	return {
 		video: result.video,
-		bucket: result.bucket,
 	};
 }

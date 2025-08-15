@@ -1,10 +1,9 @@
 import { Button } from "@cap/ui";
 import Link from "next/link";
-import type { User } from "next-auth";
+import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 
 interface MobileMenuProps {
 	setShowMobileMenu: (showMobileMenu: boolean) => void;
-	auth: User | null;
 }
 
 interface NavLink {
@@ -55,8 +54,9 @@ const externalLinks: NavLink[] = [
 	},
 ];
 
-const MobileMenu: React.FC<MobileMenuProps> = ({ setShowMobileMenu, auth }) => {
-	console.log(auth, "auth");
+const MobileMenu: React.FC<MobileMenuProps> = ({ setShowMobileMenu }) => {
+	const { isSignedIn, isLoaded } = useUser();
+
 	return (
 		<div className="overflow-auto fixed top-0 left-0 z-40 px-4 w-full h-full bg-gray-2 block md:hidden">
 			<div className="pb-12">
@@ -91,25 +91,49 @@ const MobileMenu: React.FC<MobileMenuProps> = ({ setShowMobileMenu, auth }) => {
 						</div>
 					</ul>
 					<div className="flex flex-col gap-4 items-center">
-						{auth === null && (
+						{!isLoaded ? (
 							<Button
 								variant="gray"
-								href="/login"
+								disabled
 								size="lg"
 								className="w-full font-medium"
 							>
-								Login
+								Loading...
 							</Button>
+						) : isSignedIn ? (
+							<>
+								<Button
+									variant="dark"
+									href="/dashboard"
+									size="lg"
+									className="w-full font-medium"
+								>
+									Dashboard
+								</Button>
+								<UserButton />
+							</>
+						) : (
+							<>
+								<SignInButton mode="modal">
+									<Button
+										variant="gray"
+										size="lg"
+										className="w-full font-medium"
+									>
+										Sign In
+									</Button>
+								</SignInButton>
+								<SignUpButton mode="modal">
+									<Button
+										variant="dark"
+										size="lg"
+										className="w-full font-medium"
+									>
+										Sign Up
+									</Button>
+								</SignUpButton>
+							</>
 						)}
-
-						<Button
-							variant="primary"
-							href={auth === null ? "/download" : "/dashboard"}
-							size="lg"
-							className="w-full font-medium"
-						>
-							{auth === null ? "Download App" : "Dashboard"}
-						</Button>
 					</div>
 				</nav>
 			</div>

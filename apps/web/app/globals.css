@@ -78,11 +78,11 @@ html {
 }
 
 .wrapper {
-	@apply mx-auto w-[92%] max-w-screen-2xl;
+	@apply mx-auto w-[92%] max-w-2xl;
 }
 
 .wrapper-max {
-	@apply max-w-screen-2xl;
+	@apply max-w-2xl;
 }
 
 .wrapper-sm {
@@ -133,11 +133,12 @@ a.bg-primary:hover {
 }
 
 .bg-gradient {
-	@apply bg-gradient-to-r transition-all duration-300 from-secondary-2 to-secondary-3;
+	background: linear-gradient(to right, var(--secondary-2), var(--secondary-3));
+	transition: all 0.3s;
 }
 
 .bg-gradient:hover {
-	@apply bg-gradient-to-r from-secondary to-secondary-3;
+	background: linear-gradient(to right, var(--secondary), var(--secondary-3));
 }
 
 .bg-animated {

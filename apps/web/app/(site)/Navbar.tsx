@@ -18,9 +18,9 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Suspense, use, useState } from "react";
+import { Suspense, useState } from "react";
 import MobileMenu from "@/components/ui/MobileMenu";
-import { useAuthContext } from "../Layout/AuthContext";
+import { SignInButton, SignUpButton, UserButton, useUser } from "@clerk/nextjs";
 
 const Links = [
 	{
@@ -98,7 +98,6 @@ const Links = [
 export const Navbar = () => {
 	const pathname = usePathname();
 	const [showMobileMenu, setShowMobileMenu] = useState(false);
-	const auth = use(useAuthContext().user);
 
 	return (
 		<>
@@ -221,22 +220,64 @@ export const Navbar = () => {
 				</nav>
 			</header>
 			{showMobileMenu && (
-				<MobileMenu setShowMobileMenu={setShowMobileMenu} auth={auth} />
+				<MobileMenu setShowMobileMenu={setShowMobileMenu} />
 			)}
 		</>
 	);
 };
 
 function LoginOrDashboard() {
-	const auth = use(useAuthContext().user);
+	const { isSignedIn, isLoaded } = useUser();
+	
+	if (!isLoaded) {
+		return (
+			<Button
+				variant="dark"
+				disabled
+				size="sm"
+				className="w-full font-medium sm:w-auto"
+			>
+				Loading...
+			</Button>
+		);
+	}
+
+	if (isSignedIn) {
+		return (
+			<div className="flex gap-2 items-center">
+				<Button
+					variant="dark"
+					href="/dashboard"
+					size="sm"
+					className="w-full font-medium sm:w-auto"
+				>
+					Dashboard
+				</Button>
+				<UserButton />
+			</div>
+		);
+	}
+
 	return (
-		<Button
-			variant="dark"
-			href={auth ? "/dashboard" : "/login"}
-			size="sm"
-			className="w-full font-medium sm:w-auto"
-		>
-			{auth ? "Dashboard" : "Login"}
-		</Button>
+		<div className="flex gap-2">
+			<SignInButton mode="modal">
+				<Button
+					variant="dark"
+					size="sm"
+					className="w-full font-medium sm:w-auto"
+				>
+					Sign In
+				</Button>
+			</SignInButton>
+			<SignUpButton mode="modal">
+				<Button
+					variant="gray"
+					size="sm"
+					className="w-full font-medium sm:w-auto"
+				>
+					Sign Up
+				</Button>
+			</SignUpButton>
+		</div>
 	);
 }

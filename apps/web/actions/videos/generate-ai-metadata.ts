@@ -121,7 +121,7 @@ export async function generateAiMetadata(videoId: string, userId: string) {
 		);
 
 		const transcriptKey = `${userId}/${videoId}/transcription.vtt`;
-		const { data, error } = await supabase.storage
+		const { data: transcriptData, error } = await supabase.storage
 			.from("capso-videos")
 			.download(transcriptKey);
 
@@ -130,7 +130,7 @@ export async function generateAiMetadata(videoId: string, userId: string) {
 			throw new Error(`Failed to download transcript: ${error.message}`);
 		}
 
-		const vtt = await data.text();
+		const vtt = await transcriptData.text();
 
 		if (!vtt || vtt.length < 10) {
 			console.error(

@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, use, useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import {
 	identifyUser,
 	initAnonymousUser,
 	trackEvent,
 } from "../utils/analytics";
-import { useAuthContext } from "./AuthContext";
+import { useUser } from "@clerk/nextjs";
 
 export function PosthogIdentify() {
 	return (
@@ -17,10 +17,10 @@ export function PosthogIdentify() {
 }
 
 function Inner() {
-	const user = use(useAuthContext().user);
+	const { user, isSignedIn } = useUser();
 
 	useEffect(() => {
-		if (!user) {
+		if (!isSignedIn || !user) {
 			initAnonymousUser();
 			return;
 		} else {
@@ -36,7 +36,7 @@ function Inner() {
 
 			trackEvent("user_signed_in");
 		}
-	}, [user]);
+	}, [user, isSignedIn]);
 
 	return null;
 }

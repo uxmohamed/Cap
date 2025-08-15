@@ -1,3 +1,4 @@
+/** @type {import('tailwindcss').Config} */
 module.exports = (__app, _options) => {
 	// Function to generate color scales for Radix colors
 	function getColorScale(name, alpha = false) {
@@ -27,6 +28,15 @@ module.exports = (__app, _options) => {
 				lg: "1024px",
 				xl: "1280px",
 				"2xl": "1536px",
+			},
+			maxWidth: {
+				'screen-2xl': '1536px',
+				'2xl': '672px',
+				'3xl': '768px',
+				'4xl': '896px',
+				'5xl': '1024px',
+				'6xl': '1152px',
+				'7xl': '1280px',
 			},
 			fontWeight: {
 				thin: "300",
