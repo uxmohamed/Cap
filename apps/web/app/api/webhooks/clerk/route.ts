@@ -2,7 +2,7 @@ import { Webhook } from 'svix';
 import { headers } from 'next/headers';
 import { WebhookEvent } from '@clerk/nextjs/server';
 import { db } from '@cap/database';
-import { users } from '@cap/database/schema';
+import { users } from '@cap/database/schema-postgres';
 import { eq } from 'drizzle-orm';
 import { serverEnv } from '@cap/env';
 
@@ -53,17 +53,21 @@ export async function POST(req: Request) {
 	const { id } = evt.data;
 	const eventType = evt.type;
 
-	console.log(`Webhook with and ID of ${id} and type of ${eventType}`);
-	console.log('Webhook body:', body);
+	console.log(`🔔 Webhook received - ID: ${id}, Type: ${eventType}`);
+	console.log('📦 Webhook payload:', JSON.stringify(evt.data, null, 2));
 
 	// Handle the webhook
 	switch (eventType) {
 		case 'user.created':
 			const user = evt.data;
 			
+			console.log(`👤 Creating user in database: ${user.id}`);
+			console.log(`📧 Email: ${user.email_addresses[0]?.email_address}`);
+			console.log(`👤 Name: ${user.first_name} ${user.last_name}`);
+			
 			// Create user in database with all required fields
 			try {
-				await db().insert(users).values({
+				const userData = {
 					id: user.id,
 					email: user.email_addresses[0]?.email_address || "",
 					emailVerified: user.email_addresses[0]?.verification?.status === "verified" ? new Date() : null,
@@ -76,10 +80,17 @@ export async function POST(req: Request) {
 					stripeSubscriptionStatus: null,
 					thirdPartyStripeSubscriptionId: null,
 					inviteQuota: 0,
-				});
-				console.log(`User created in database: ${user.id}`);
+				};
+				
+				console.log(`💾 Inserting user data:`, userData);
+				await db().insert(users).values(userData);
+				console.log(`✅ User successfully created in database: ${user.id}`);
 			} catch (error) {
-				console.error('Error creating user in database:', error);
+				console.error('❌ Error creating user in database:', error);
+				console.error('🔍 Error details:', {
+					message: error instanceof Error ? error.message : 'Unknown error',
+					stack: error instanceof Error ? error.stack : undefined
+				});
 			}
 			break;
 			

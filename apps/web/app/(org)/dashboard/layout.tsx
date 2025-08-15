@@ -23,28 +23,16 @@ export default async function DashboardLayout({
 	try {
 		console.log("🚀 Dashboard layout starting...");
 		
-		// TEMPORARY: Bypass authentication for testing
-		console.log("🔧 TEMPORARY: Bypassing authentication check");
+		// Get current user from Clerk and database
+		const user = await getCurrentUser();
+		console.log("👤 Current user from DB:", user ? "found" : "not found");
 		
-		// Create a mock user for testing
-		const mockUser = {
-			id: "temp-user-id",
-			email: "temp@example.com",
-			name: "Temporary User",
-			lastName: null,
-			emailVerified: new Date(),
-			image: null,
-			activeOrganizationId: "",
-			stripeCustomerId: null,
-			stripeSubscriptionId: null,
-			stripeSubscriptionStatus: null,
-			thirdPartyStripeSubscriptionId: null,
-			inviteQuota: 0,
-		};
+		if (!user) {
+			console.log("❌ No user found, redirecting to login");
+			redirect("/login");
+		}
 		
-		const user = mockUser as any;
-		
-		console.log("✅ Using mock user for testing:", { id: user.id, name: user.name });
+		console.log("👤 User details:", { id: user.id, email: user.email, name: user.name });
 
 		// TEMPORARY: Skip onboarding check for testing
 		// if (!user.name || user.name.length <= 1) {
@@ -56,6 +44,7 @@ export default async function DashboardLayout({
 		let spacesData: Spaces[] = [];
 		let anyNewNotifications = false;
 		let userPreferences: UserPreferences | null = null;
+		
 		try {
 			console.log("📊 Loading dashboard data...");
 			const dashboardData = await getDashboardData(user);
@@ -64,8 +53,15 @@ export default async function DashboardLayout({
 			spacesData = dashboardData.spacesData;
 			anyNewNotifications = dashboardData.anyNewNotifications;
 			console.log("✅ Dashboard data loaded successfully");
+			console.log("📊 Organizations found:", organizationSelect.length);
+			console.log("📊 Spaces found:", spacesData.length);
 		} catch (error) {
 			console.error("❌ Failed to load dashboard data", error);
+			console.error("🔍 Error details:", {
+				message: error instanceof Error ? error.message : 'Unknown error',
+				stack: error instanceof Error ? error.stack : undefined
+			});
+			// Continue with empty data instead of failing completely
 			organizationSelect = [];
 			spacesData = [];
 			anyNewNotifications = false;
