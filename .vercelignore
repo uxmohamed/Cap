@@ -14,3 +14,16 @@ apps/storybook
 apps/tasks
 packages/ui-solid
 packages/web-backend
+scripts
+tools
+.github
+.vscode
+*.md
+.gitignore
+*.tsbuildinfo
+dist
+build
+coverage
+.nyc_output
+.cache
+.turbo
