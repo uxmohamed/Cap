@@ -9,7 +9,7 @@ import {
 	spaceMembers,
 	spaces,
 	users,
-} from "@cap/database/schema";
+} from "@cap/database/schema-postgres";
 import { and, count, eq, inArray, isNull, or, sql } from "drizzle-orm";
 
 export type Organization = {

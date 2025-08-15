@@ -1,6 +1,6 @@
 "use client";
 
-import type { users } from "@cap/database/schema";
+import type { users } from "@cap/database/schema-postgres";
 import { buildEnv } from "@cap/env";
 import Cookies from "js-cookie";
 import { usePathname } from "next/navigation";

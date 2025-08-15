@@ -9,7 +9,7 @@ import {
 	spaceVideos,
 	users,
 	videos,
-} from "@cap/database/schema";
+} from "@cap/database/schema-postgres";
 import { serverEnv } from "@cap/env";
 import { Video } from "@cap/web-domain";
 import { and, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
@@ -106,9 +106,10 @@ export default async function CapsPage({
 		redirect("/login");
 	}
 
-	if (!user.name || user.name.length <= 1) {
-		redirect("/onboarding");
-	}
+	// TEMPORARY: Skip onboarding check for testing
+	// if (!user.name || user.name.length <= 1) {
+	// 	redirect("/onboarding");
+	// }
 
 	const userId = user.id;
 	const page = Number(searchParams.page) || 1;
@@ -123,14 +124,18 @@ export default async function CapsPage({
 	const totalCount = totalCountResult[0]?.count || 0;
 
 	// Get custom domain and verification status for the user's organization
-	const organizationData = await db()
-		.select({
-			customDomain: organizations.customDomain,
-			domainVerified: organizations.domainVerified,
-		})
-		.from(organizations)
-		.where(eq(organizations.id, user.activeOrganizationId))
-		.limit(1);
+	let organizationData: { customDomain: string | null; domainVerified: Date | null }[] = [];
+	
+	if (user.activeOrganizationId) {
+		organizationData = await db()
+			.select({
+				customDomain: organizations.customDomain,
+				domainVerified: organizations.domainVerified,
+			})
+			.from(organizations)
+			.where(eq(organizations.id, user.activeOrganizationId))
+			.limit(1);
+	}
 
 	let customDomain: string | null = null;
 	let domainVerified = false;
@@ -200,24 +205,28 @@ export default async function CapsPage({
 		.limit(limit)
 		.offset(offset);
 
-	const foldersData = await db()
-		.select({
-			id: folders.id,
-			name: folders.name,
-			color: folders.color,
-			parentId: folders.parentId,
-			videoCount: sql<number>`(
-        SELECT COUNT(*) FROM videos WHERE videos.folderId = folders.id
-      )`,
-		})
-		.from(folders)
-		.where(
-			and(
-				eq(folders.organizationId, user.activeOrganizationId),
-				isNull(folders.parentId),
-				isNull(folders.spaceId),
-			),
-		);
+	let foldersData: { id: string; name: string; color: string; parentId: string | null; videoCount: number }[] = [];
+	
+	if (user.activeOrganizationId) {
+		foldersData = await db()
+			.select({
+				id: folders.id,
+				name: folders.name,
+				color: folders.color,
+				parentId: folders.parentId,
+				videoCount: sql<number>`(
+	        SELECT COUNT(*) FROM videos WHERE videos.folderId = folders.id
+	      )`,
+			})
+			.from(folders)
+			.where(
+				and(
+					eq(folders.organizationId, user.activeOrganizationId),
+					isNull(folders.parentId),
+					isNull(folders.spaceId),
+				),
+			);
+	}
 
 	// Fetch shared spaces data for all videos
 	const videoIds = videoData.map((video) => video.id);

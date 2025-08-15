@@ -6,7 +6,7 @@ import {
 	organizationMembers,
 	organizations,
 	users,
-} from "@cap/database/schema";
+} from "@cap/database/schema-postgres";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { createSpace as createSpaceAction } from "@/actions/organization/create-space";
