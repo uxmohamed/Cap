@@ -44,10 +44,11 @@ export default async function DashboardLayout({
 
 		console.log("✅ User authenticated:", { id: user.id, name: user.name });
 
-		if (!user.name || user.name.length <= 1) {
-			console.log("📝 User needs onboarding, redirecting...");
-			redirect("/onboarding");
-		}
+		// TEMPORARY: Skip onboarding check for testing
+		// if (!user.name || user.name.length <= 1) {
+		// 	console.log("📝 User needs onboarding, redirecting...");
+		// 	redirect("/onboarding");
+		// }
 
 		let organizationSelect: Organization[] = [];
 		let spacesData: Spaces[] = [];
