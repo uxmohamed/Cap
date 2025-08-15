@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.log
+.DS_Store
+.vercel
+packages/database/test-connection.js
+apps/desktop
+apps/storybook
+apps/tasks
+packages/ui-solid
+packages/web-backend
