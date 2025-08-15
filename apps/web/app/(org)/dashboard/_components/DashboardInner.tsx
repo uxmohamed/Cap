@@ -19,7 +19,7 @@ import { MoreVertical } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut } from "@clerk/nextjs";
 import type React from "react";
 import {
 	cloneElement,

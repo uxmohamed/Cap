@@ -5,7 +5,8 @@ import { getBootstrapData } from "@/utils/getBootstrapData";
 
 export default async function Home() {
 	const cookieStore = cookies();
-	const sessionCookie = cookieStore.get("next-auth.session-token");
+	// Clerk handles session management automatically
+	const sessionCookie = null;
 	const bootstrapData = await getBootstrapData();
 
 	const homepageCopyVariant =

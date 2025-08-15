@@ -4,7 +4,7 @@ import type { userSelectProps } from "@cap/database/auth/session";
 import { Button, Logo } from "@cap/ui";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signOut } from "next-auth/react";
+import { signOut } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
 

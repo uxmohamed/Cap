@@ -57,13 +57,11 @@ async function main() {
 	if (hasWeb) {
 		envs.VITE_SERVER_URL = "http://localhost:3000";
 		envs.WEB_URL = "http://localhost:3000";
-		envs.NEXTAUTH_URL = envs.WEB_URL;
-
-		if (!allEnvs.NEXTAUTH_SECRET) {
-			allEnvs.NEXTAUTH_SECRET = crypto.randomBytes(32).toString("base64");
-			log.info("Generated NEXTAUTH_SECRET");
-		}
-		envs.NEXTAUTH_SECRET = allEnvs.NEXTAUTH_SECRET;
+			// Clerk configuration
+	if (!allEnvs.CLERK_SECRET_KEY) {
+		log.warn("CLERK_SECRET_KEY not found. Please set it in your environment.");
+	}
+	envs.CLERK_SECRET_KEY = allEnvs.CLERK_SECRET_KEY;
 
 		if (!allEnvs.DATABASE_ENCRYPTION_KEY) {
 			allEnvs.DATABASE_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");

@@ -15,7 +15,7 @@ import { LucideArrowUpRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { useSignIn, useSignUp } from "@clerk/nextjs";
 import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { getOrganizationSSOData } from "@/actions/organization/get-organization-sso-data";
@@ -35,6 +35,9 @@ export function LoginForm() {
 	const [organizationId, setOrganizationId] = useState("");
 	const [organizationName, setOrganizationName] = useState<string | null>(null);
 	const theme = Cookies.get("theme") || "light";
+	
+	const { signIn, isLoaded: signInLoaded } = useSignIn();
+	const { signUp, isLoaded: signUpLoaded } = useSignUp();
 
 	const emailSignInMutation = useMutation({
 		mutationFn: async (email: string) => {
@@ -43,13 +46,17 @@ export function LoginForm() {
 				is_signup: !oauthError,
 			});
 
-			const result = await signIn("email", {
-				email,
-				redirect: false,
-				...(next && next.length > 0 ? { callbackUrl: next } : {}),
+			if (!signInLoaded) {
+				throw new Error("Sign in not loaded");
+			}
+
+			const result = await signIn.create({
+				strategy: "email_code",
+				identifier: email,
+				redirectUrl: next && next.length > 0 ? next : "/dashboard",
 			});
 
-			if (!result?.ok || result?.error) {
+			if (!result) {
 				throw new Error("Failed to send email");
 			}
 
@@ -134,8 +141,11 @@ export function LoginForm() {
 
 	const handleGoogleSignIn = () => {
 		trackEvent("auth_started", { method: "google", is_signup: true });
-		signIn("google", {
-			...(next && next.length > 0 ? { callbackUrl: next } : {}),
+		if (!signInLoaded) return;
+		
+		signIn.authenticateWithRedirect({
+			strategy: "oauth_google",
+			redirectUrl: next && next.length > 0 ? next : "/dashboard",
 		});
 	};
 
@@ -150,9 +160,15 @@ export function LoginForm() {
 			const data = await getOrganizationSSOData(organizationId);
 			setOrganizationName(data.name);
 
-			signIn("workos", undefined, {
-				organization: data.organizationId,
-				connection: data.connectionId,
+			if (!signInLoaded) return;
+			
+			signIn.authenticateWithRedirect({
+				strategy: "oauth_workos",
+				redirectUrl: next && next.length > 0 ? next : "/dashboard",
+				additionalData: {
+					organization: data.organizationId,
+					connection: data.connectionId,
+				},
 			});
 		} catch (error) {
 			console.error("Lookup Error:", error);

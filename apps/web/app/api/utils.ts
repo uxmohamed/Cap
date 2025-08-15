@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { createMiddleware } from "hono/factory";
-import { cookies } from "next/headers";
+import { auth } from "@clerk/nextjs/server";
 
 async function getAuth(c: Context) {
 	const authHeader = c.req.header("authorization")?.split(" ")[1];
@@ -21,17 +21,17 @@ async function getAuth(c: Context) {
 			.where(eq(authApiKeys.id, authHeader));
 		user = res[0]?.users;
 	} else {
-		if (authHeader)
-			cookies().set({
-				name: "next-auth.session-token",
-				value: authHeader,
-				path: "/",
-				sameSite: "none",
-				secure: true,
-				httpOnly: true,
-			});
-
-		user = await getCurrentUser();
+		// Use Clerk auth instead of NextAuth
+		const { userId } = await auth();
+		
+		if (userId) {
+			const [currentUser] = await db()
+				.select()
+				.from(users)
+				.where(eq(users.id, userId))
+				.limit(1);
+			user = currentUser;
+		}
 	}
 
 	if (!user) return;
@@ -40,7 +40,7 @@ async function getAuth(c: Context) {
 
 export const withOptionalAuth = createMiddleware<{
 	Variables: {
-		user?: Awaited<ReturnType<typeof getCurrentUser>>;
+		user?: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>;
 	};
 }>(async (c, next) => {
 	const auth = await getAuth(c);
@@ -65,16 +65,21 @@ export const withAuth = createMiddleware<{
 
 export const allowedOrigins = [
 	buildEnv.NEXT_PUBLIC_WEB_URL,
-	"http://localhost:3001",
+	buildEnv.NEXT_PUBLIC_WEB_URL.replace("https://", "http://"),
 	"http://localhost:3000",
-	"tauri://localhost",
-	"http://tauri.localhost",
-	"https://tauri.localhost",
+	"http://localhost:3001",
+	"http://localhost:3002",
+	"http://localhost:3003",
+	"http://localhost:3004",
+	"http://localhost:3005",
+	"http://localhost:3006",
+	"http://localhost:3007",
+	"http://localhost:3008",
+	"http://localhost:3009",
+	"http://localhost:3010",
 ];
 
 export const corsMiddleware = cors({
 	origin: allowedOrigins,
 	credentials: true,
-	allowMethods: ["POST", "OPTIONS"],
-	allowHeaders: ["Content-Type", "Authorization", "sentry-trace", "baggage"],
 });

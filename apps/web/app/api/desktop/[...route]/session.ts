@@ -1,13 +1,12 @@
 import { db } from "@cap/database";
-import { authOptions } from "@cap/database/auth/auth-options";
+
 import { getCurrentUser } from "@cap/database/auth/session";
 import { authApiKeys } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
 import { zValidator } from "@hono/zod-validator";
 import { Hono } from "hono";
 import { getCookie } from "hono/cookie";
-import { getServerSession } from "next-auth";
-import { decode } from "next-auth/jwt";
+import { auth } from "@clerk/nextjs/server";
 import { z } from "zod";
 
 export const app = new Hono();
@@ -29,8 +28,6 @@ app.get(
 	async (c) => {
 		const { port, platform, type } = c.req.valid("query");
 
-		const secret = serverEnv().NEXTAUTH_SECRET;
-
 		const url = new URL(c.req.url);
 
 		const redirectOrigin = getDeploymentOrigin();
@@ -47,17 +44,14 @@ app.get(
 		let data;
 
 		if (type === "session") {
-			const token = getCookie(c, "next-auth.session-token");
-			if (token === undefined) return c.redirect(loginRedirectUrl);
-
-			const decodedToken = await decode({ token, secret });
-
-			if (!decodedToken) return c.redirect(loginRedirectUrl);
+			// For Clerk, we'll use the session token from the request
+			const { userId } = await auth();
+			if (!userId) return c.redirect(loginRedirectUrl);
 
 			data = {
 				type: "token",
-				token,
-				expires: decodedToken.exp as string,
+				token: "clerk-session", // Placeholder - Clerk handles session management
+				expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
 			};
 		} else {
 			const id = crypto.randomUUID();

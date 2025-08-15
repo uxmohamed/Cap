@@ -23,9 +23,8 @@ function createServerEnv() {
 			SUPABASE_STORAGE_BUCKET: z.string().optional(),
 			// Clerk Authentication
 			CLERK_SECRET_KEY: z.string(),
-			// NextAuth (to be removed after migration)
-			NEXTAUTH_SECRET: z.string().optional(),
-			NEXTAUTH_URL: z.string().optional(),
+			CLERK_WEBHOOK_SECRET: z.string().optional(),
+
 			// Optional integrations
 			GOOGLE_CLIENT_ID: z.string().optional(),
 			GOOGLE_CLIENT_SECRET: z.string().optional(),

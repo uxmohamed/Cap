@@ -3,7 +3,7 @@ import { Button, Dialog, DialogContent, Input, LogoBadge } from "@cap/ui";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Image from "next/image";
-import { signIn } from "next-auth/react";
+import { useSignIn } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -20,8 +20,14 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({
 	const [loading, setLoading] = useState(false);
 	const [emailSent, setEmailSent] = useState(false);
 
+	const { signIn, isLoaded } = useSignIn();
+
 	const handleGoogleSignIn = () => {
-		signIn("google");
+		if (!isLoaded) return;
+		signIn.authenticateWithRedirect({
+			strategy: "oauth_google",
+			redirectUrl: "/dashboard",
+		});
 	};
 
 	return (
@@ -66,13 +72,14 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({
 								if (!email) return;
 
 								setLoading(true);
-								signIn("email", {
-									email,
-									redirect: false,
+								signIn.create({
+									strategy: "email_code",
+									identifier: email,
+									redirectUrl: "/dashboard",
 								})
 									.then((res) => {
 										setLoading(false);
-										if (res?.ok && !res?.error) {
+										if (res) {
 											setEmail("");
 											setEmailSent(true);
 											toast.success("Email sent - check your inbox!");

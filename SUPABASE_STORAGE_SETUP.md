@@ -33,8 +33,7 @@ S3_PATH_STYLE=true
 
 # Other required vars
 WEB_URL=http://localhost:3000
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-nextauth-secret
+CLERK_SECRET_KEY=your-clerk-secret-key
 DATABASE_ENCRYPTION_KEY=your-encryption-key
 ```
 
