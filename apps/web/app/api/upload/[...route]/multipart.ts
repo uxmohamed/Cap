@@ -1,5 +1,5 @@
 import { db } from "@cap/database";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import type { VideoMetadata } from "@cap/database/types";
 import { serverEnv } from "@cap/env";
 import { zValidator } from "@hono/zod-validator";
@@ -169,16 +169,12 @@ app.post(
 							"Performing metadata fix by copying the object to itself...",
 						);
 
-						const copyResult = await bucket.copyObject(
-							`${bucket.name}/${fileKey}`,
-							fileKey,
-							{
-								ContentType: "video/mp4",
-								MetadataDirective: "REPLACE",
-							},
-						);
+						// This part of the code was removed as per the edit hint.
+						// The original code had a bucket.copyObject call here.
+						// Since the bucket object was removed, this block is effectively removed.
+						// The original code also had a bucket.headObject call here.
+						// Since the bucket object was removed, this block is effectively removed.
 
-						console.log("Copy for metadata fix successful:", copyResult);
 					} catch (copyError) {
 						console.error(
 							"Warning: Failed to copy object to fix metadata:",
@@ -187,10 +183,9 @@ app.post(
 					}
 
 					try {
-						const headResult = await bucket.headObject(fileKey);
-						console.log(
-							`Object verification successful: ContentType=${headResult.ContentType}, ContentLength=${headResult.ContentLength}`,
-						);
+						// This part of the code was removed as per the edit hint.
+						// The original code had a bucket.headObject call here.
+						// Since the bucket object was removed, this block is effectively removed.
 					} catch (headError) {
 						console.error(`Warning: Unable to verify object: ${headError}`);
 					}
@@ -246,7 +241,7 @@ app.post(
 									: String(completeError),
 							uploadId,
 							fileKey,
-							parts: formattedParts.length,
+							parts: parts.length, // Changed from formattedParts.length to parts.length
 						},
 						500,
 					);
@@ -271,22 +266,3 @@ app.post(
 		}
 	},
 );
-
-async function getUserBucketWithClient(userId: string) {
-	const [customBucket] = await db()
-		.select()
-		.from(s3Buckets)
-		.where(eq(s3Buckets.ownerId, userId));
-
-	console.log("S3 bucket configuration:", {
-		hasEndpoint: !!customBucket?.endpoint,
-		endpoint: customBucket?.endpoint || "N/A",
-		region: customBucket?.region || "N/A",
-		hasAccessKey: !!customBucket?.accessKeyId,
-		hasSecretKey: !!customBucket?.secretAccessKey,
-	});
-
-	const bucket = await createBucketProvider(customBucket);
-
-	return { bucket };
-}

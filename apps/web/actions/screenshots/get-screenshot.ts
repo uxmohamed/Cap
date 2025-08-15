@@ -1,10 +1,9 @@
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
-import { s3Buckets, videos } from "@cap/database/schema";
-import { buildEnv, serverEnv } from "@cap/env";
-import { S3_BUCKET_URL } from "@cap/utils";
+import { videos } from "@cap/database/schema";
+import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
-// Storage adapter moved to Supabase; this action path may be updated later if needed.
+import { createClient } from "@supabase/supabase-js";
 
 export async function getScreenshot(userId: string, screenshotId: string) {
 	if (!userId || !screenshotId) {
@@ -12,21 +11,18 @@ export async function getScreenshot(userId: string, screenshotId: string) {
 	}
 
 	const query = await db()
-		.select({ video: videos, bucket: s3Buckets })
+		.select()
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, screenshotId));
 
 	if (query.length === 0) {
 		throw new Error("Video does not exist");
 	}
 
-	const result = query[0];
-	if (!result?.video) {
+	const video = query[0];
+	if (!video) {
 		throw new Error("Video not found");
 	}
-
-	const { video, bucket } = result;
 
 	if (video.public === false) {
 		const user = await getCurrentUser();
@@ -36,31 +32,40 @@ export async function getScreenshot(userId: string, screenshotId: string) {
 		}
 	}
 
-	const bucketProvider = await createBucketProvider(bucket);
+	const supabase = createClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
+
 	const screenshotPrefix = `${userId}/${screenshotId}/`;
 
 	try {
-		const objects = await bucketProvider.listObjects({
-			prefix: screenshotPrefix,
-		});
+		const { data: objects, error } = await supabase.storage
+			.from("capso-videos")
+			.list(screenshotPrefix);
 
-		const screenshot = objects.Contents?.find((object) =>
-			object.Key?.endsWith(".png"),
+		if (error) {
+			throw new Error(`Failed to list screenshots: ${error.message}`);
+		}
+
+		const screenshot = objects?.find((object) =>
+			object.name?.endsWith(".png"),
 		);
 
 		if (!screenshot) {
 			throw new Error("Screenshot not found");
 		}
 
-		let screenshotUrl: string;
+		const screenshotKey = `${screenshotPrefix}${screenshot.name}`;
+		const { data: urlData, error: urlError } = await supabase.storage
+			.from("capso-videos")
+			.createSignedUrl(screenshotKey, 3600); // 1 hour expiry
 
-		if (video.awsBucket !== serverEnv().CAP_AWS_BUCKET) {
-			screenshotUrl = await bucketProvider.getSignedObjectUrl(screenshot.Key!);
-		} else {
-			screenshotUrl = `${S3_BUCKET_URL}/${screenshot.Key}`;
+		if (urlError) {
+			throw new Error(`Failed to generate screenshot URL: ${urlError.message}`);
 		}
 
-		return { url: screenshotUrl };
+		return { url: urlData.signedUrl };
 	} catch (error) {
 		throw new Error(`Error generating screenshot URL: ${error}`);
 	}
