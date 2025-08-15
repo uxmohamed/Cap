@@ -20,15 +20,25 @@ export const getSession = async () => {
 
 export const getCurrentUser = cache(
 	async (): Promise<InferSelectModel<typeof users> | null> => {
-		const { userId } = await auth();
+		console.log("🔍 getCurrentUser called...");
 		
-		if (!userId) return null;
+		const { userId } = await auth();
+		console.log("🔍 Clerk userId:", userId);
+		
+		if (!userId) {
+			console.log("❌ No userId from Clerk auth");
+			return null;
+		}
 
+		// Convert to short ID format for database lookup
+		const shortId = userId.replace('user_', '').substring(0, 15);
+		console.log("🔍 Querying database for user:", shortId, "(from Clerk ID:", userId + ")");
 		const [currentUser] = await db()
 			.select()
 			.from(users)
-			.where(eq(users.id, userId));
+			.where(eq(users.id, shortId));
 
+		console.log("🔍 Database result:", currentUser ? "found" : "not found");
 		return currentUser ?? null;
 	}
 );
@@ -46,10 +56,11 @@ export const syncUserWithDatabase = async (): Promise<InferSelectModel<typeof us
 		}
 
 		// Check if user exists in database
+		const shortId = clerkUser.id.replace('user_', '').substring(0, 15);
 		const [existingUser] = await db()
 			.select()
 			.from(users)
-			.where(eq(users.id, clerkUser.id))
+			.where(eq(users.id, shortId))
 			.limit(1);
 
 		console.log("🔍 Existing user in DB:", existingUser ? "found" : "not found");
@@ -66,7 +77,7 @@ export const syncUserWithDatabase = async (): Promise<InferSelectModel<typeof us
 					lastName: clerkUser.lastName || existingUser.lastName,
 					image: clerkUser.imageUrl || existingUser.image,
 				})
-				.where(eq(users.id, clerkUser.id));
+				.where(eq(users.id, shortId));
 			
 			console.log("✅ User updated successfully");
 			return existingUser;
@@ -75,7 +86,7 @@ export const syncUserWithDatabase = async (): Promise<InferSelectModel<typeof us
 		console.log("🆕 Creating new user...");
 		// Create new user with all required fields
 		const newUser = {
-			id: clerkUser.id,
+			id: shortId,
 			email: clerkUser.emailAddresses[0]?.emailAddress || "",
 			emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified" ? new Date() : null,
 			name: clerkUser.firstName || "",

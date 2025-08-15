@@ -45,7 +45,7 @@ const encryptedTextNullable = customType<{ data: string; notNull: false }>({
 export const users = pgTable(
 	"users",
 	{
-		id: nanoId("id").notNull().primaryKey().unique(),
+		id: varchar("id", { length: 255 }).notNull().primaryKey().unique(),
 		name: varchar("name", { length: 255 }),
 		lastName: varchar("lastName", { length: 255 }),
 		email: varchar("email", { length: 255 }).unique().notNull(),
@@ -74,7 +74,7 @@ export const users = pgTable(
 				};
 			} | null>()
 			.default(null),
-		activeOrganizationId: nanoId("activeOrganizationId"),
+		activeOrganizationId: varchar("activeOrganizationId", { length: 255 }),
 		created_at: timestamp("created_at").notNull().defaultNow(),
 		updated_at: timestamp("updated_at").notNull().defaultNow(),
 		onboarding_completed_at: timestamp("onboarding_completed_at"),

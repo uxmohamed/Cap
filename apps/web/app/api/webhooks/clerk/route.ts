@@ -67,8 +67,11 @@ export async function POST(req: Request) {
 			
 			// Create user in database with all required fields
 			try {
-				const userData = {
-					id: user.id,
+							// Generate a shorter ID that fits the schema constraint
+			const shortId = user.id.replace('user_', '').substring(0, 15);
+			console.log(`🔄 Converting ID: ${user.id} -> ${shortId}`);
+			const userData = {
+				id: shortId,
 					email: user.email_addresses[0]?.email_address || "",
 					emailVerified: user.email_addresses[0]?.verification?.status === "verified" ? new Date() : null,
 					name: user.first_name || "",
@@ -97,8 +100,11 @@ export async function POST(req: Request) {
 		case 'user.updated':
 			const updatedUser = evt.data;
 			
+			console.log(`👤 Updating user in database: ${updatedUser.id}`);
+			
 			// Update user in database
 			try {
+				const shortUpdatedId = updatedUser.id.replace('user_', '').substring(0, 15);
 				await db()
 					.update(users)
 					.set({
@@ -108,24 +114,27 @@ export async function POST(req: Request) {
 						lastName: updatedUser.last_name || "",
 						image: updatedUser.image_url || "",
 					})
-					.where(eq(users.id, updatedUser.id));
-				console.log(`User updated in database: ${updatedUser.id}`);
+					.where(eq(users.id, shortUpdatedId));
+				console.log(`✅ User updated in database: ${shortUpdatedId}`);
 			} catch (error) {
-				console.error('Error updating user in database:', error);
+				console.error('❌ Error updating user in database:', error);
 			}
 			break;
 			
 		case 'user.deleted':
 			const deletedUser = evt.data;
 			
+			console.log(`👤 Deleting user from database: ${deletedUser.id}`);
+			
 			// Delete user from database
 			try {
+				const shortDeletedId = deletedUser.id.replace('user_', '').substring(0, 15);
 				await db()
 					.delete(users)
-					.where(eq(users.id, deletedUser.id));
-				console.log(`User deleted from database: ${deletedUser.id}`);
+					.where(eq(users.id, shortDeletedId));
+				console.log(`✅ User deleted from database: ${shortDeletedId}`);
 			} catch (error) {
-				console.error('Error deleting user from database:', error);
+				console.error('❌ Error deleting user from database:', error);
 			}
 			break;
 			
