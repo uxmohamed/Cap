@@ -4,7 +4,8 @@ import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
 import { videos } from "@cap/database/schema";
 import { eq } from "drizzle-orm";
-// Supabase storage in use; adjust download to signed URL logic if needed.
+import { createClient } from "@supabase/supabase-js";
+import { serverEnv } from "@cap/env";
 
 export async function downloadVideo(videoId: string) {
 	const user = await getCurrentUser();
@@ -30,14 +31,23 @@ export async function downloadVideo(videoId: string) {
 	}
 
 	try {
-		const bucketProvider = await createBucketProvider();
-		const videoKey = `${video.ownerId}/${videoId}/result.mp4`;
+		const supabase = createClient(
+			serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+			serverEnv().SUPABASE_SERVICE_ROLE!
+		);
 
-		const downloadUrl = await bucketProvider.getSignedObjectUrl(videoKey);
+		const videoKey = `${video.ownerId}/${videoId}/result.mp4`;
+		const { data, error } = await supabase.storage
+			.from("capso-videos")
+			.createSignedUrl(videoKey, 3600); // 1 hour expiry
+
+		if (error) {
+			throw new Error(`Failed to generate download URL: ${error.message}`);
+		}
 
 		return {
 			success: true,
-			downloadUrl,
+			downloadUrl: data.signedUrl,
 			filename: `${video.name}.mp4`,
 		};
 	} catch (error) {

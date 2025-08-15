@@ -1,14 +1,13 @@
 "use server";
 
-import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { db } from "@cap/database";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import type { VideoMetadata } from "@cap/database/types";
 import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
 import { GROQ_MODEL, getGroqClient } from "@/lib/groq-client";
-import { createBucketProvider } from "@/utils/s3";
+import { createClient } from "@supabase/supabase-js";
+
 export async function generateAiMetadata(videoId: string, userId: string) {
 	const groqClient = getGroqClient();
 	if (!groqClient && !serverEnv().OPENAI_API_KEY) {
@@ -97,10 +96,10 @@ export async function generateAiMetadata(videoId: string, userId: string) {
 				},
 			})
 			.where(eq(videos.id, videoId));
+
 		const query = await db()
-			.select({ video: videos, bucket: s3Buckets })
+			.select()
 			.from(videos)
-			.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 			.where(eq(videos.id, videoId));
 
 		if (query.length === 0 || !query[0]) {
@@ -108,28 +107,30 @@ export async function generateAiMetadata(videoId: string, userId: string) {
 			throw new Error(`Video data not found for ${videoId}`);
 		}
 
-		const row = query[0];
-		if (!row || !row.video) {
+		const video = query[0];
+		if (!video) {
 			console.error(
 				`[generateAiMetadata] Video record not found for ${videoId}`,
 			);
 			throw new Error(`Video record not found for ${videoId}`);
 		}
 
-		const { video } = row;
-
-		const awsBucket = video.awsBucket;
-		if (!awsBucket) {
-			console.error(
-				`[generateAiMetadata] AWS bucket not found for video ${videoId}`,
-			);
-			throw new Error(`AWS bucket not found for video ${videoId}`);
-		}
-
-		const bucket = await createBucketProvider(row.bucket);
+		const supabase = createClient(
+			serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+			serverEnv().SUPABASE_SERVICE_ROLE!
+		);
 
 		const transcriptKey = `${userId}/${videoId}/transcription.vtt`;
-		const vtt = await bucket.getObject(transcriptKey);
+		const { data, error } = await supabase.storage
+			.from("capso-videos")
+			.download(transcriptKey);
+
+		if (error) {
+			console.error(`[generateAiMetadata] Failed to download transcript: ${error.message}`);
+			throw new Error(`Failed to download transcript: ${error.message}`);
+		}
+
+		const vtt = await data.text();
 
 		if (!vtt || vtt.length < 10) {
 			console.error(

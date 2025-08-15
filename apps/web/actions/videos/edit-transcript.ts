@@ -1,12 +1,12 @@
 "use server";
 
-import { GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createBucketProvider } from "@/utils/s3";
+import { createClient } from "@supabase/supabase-js";
+import { serverEnv } from "@cap/env";
 
 export async function editTranscriptEntry(
 	videoId: string,
@@ -24,24 +24,18 @@ export async function editTranscriptEntry(
 
 	const userId = user.id;
 	const query = await db()
-		.select({
-			video: videos,
-			bucket: s3Buckets,
-		})
+		.select()
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, videoId));
 
 	if (query.length === 0) {
 		return { success: false, message: "Video not found" };
 	}
 
-	const result = query[0];
-	if (!result?.video) {
+	const video = query[0];
+	if (!video) {
 		return { success: false, message: "Video information is missing" };
 	}
-
-	const { video } = result;
 
 	if (video.ownerId !== userId) {
 		return {
@@ -50,20 +44,39 @@ export async function editTranscriptEntry(
 		};
 	}
 
-	const bucket = await createBucketProvider(result.bucket);
+	const supabase = createClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
 
 	try {
 		const transcriptKey = `${video.ownerId}/${videoId}/transcription.vtt`;
 
-		const vttContent = await bucket.getObject(transcriptKey);
-		if (!vttContent)
-			return { success: false, message: "Transcript file not found" };
+		// Download current transcript
+		const { data: downloadData, error: downloadError } = await supabase.storage
+			.from("capso-videos")
+			.download(transcriptKey);
 
+		if (downloadError) {
+			console.error("[editTranscript] Download error:", downloadError);
+			return { success: false, message: "Transcript file not found" };
+		}
+
+		const vttContent = await downloadData.text();
 		const updatedVttContent = updateVttEntry(vttContent, entryId, newText);
 
-		await bucket.putObject(transcriptKey, updatedVttContent, {
-			contentType: "text/vtt",
-		});
+		// Upload updated transcript
+		const { error: uploadError } = await supabase.storage
+			.from("capso-videos")
+			.upload(transcriptKey, updatedVttContent, {
+				contentType: "text/vtt",
+				upsert: true,
+			});
+
+		if (uploadError) {
+			console.error("[editTranscript] Upload error:", uploadError);
+			return { success: false, message: "Failed to save transcript changes" };
+		}
 
 		revalidatePath(`/s/${videoId}`);
 

@@ -1,10 +1,10 @@
 import { db } from "@cap/database";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
 import { createClient } from "@deepgram/sdk";
 import { eq } from "drizzle-orm";
 import { generateAiMetadata } from "@/actions/videos/generate-ai-metadata";
-// S3 provider removed; uploads served from Supabase Storage.
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 type TranscribeResult = {
 	success: boolean;
@@ -31,25 +31,15 @@ export async function transcribeVideo(
 	}
 
 	const query = await db()
-		.select({
-			video: videos,
-			bucket: s3Buckets,
-		})
+		.select()
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, videoId));
 
 	if (query.length === 0) {
 		return { success: false, message: "Video does not exist" };
 	}
 
-	const result = query[0];
-	if (!result || !result.video) {
-		return { success: false, message: "Video information is missing" };
-	}
-
-	const { video } = result;
-
+	const video = query[0];
 	if (!video) {
 		return { success: false, message: "Video information is missing" };
 	}
@@ -69,24 +59,40 @@ export async function transcribeVideo(
 		.set({ transcriptionStatus: "PROCESSING" })
 		.where(eq(videos.id, videoId));
 
-	const bucket = await createBucketProvider(result.bucket);
+	const supabase = createSupabaseClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
 
 	try {
 		const videoKey = `${userId}/${videoId}/result.mp4`;
 
-		const videoUrl = await bucket.getSignedObjectUrl(videoKey);
+		// Get signed URL for video download
+		const { data: urlData, error: urlError } = await supabase.storage
+			.from("capso-videos")
+			.createSignedUrl(videoKey, 3600); // 1 hour expiry
 
-		const transcription = await transcribeAudio(videoUrl);
+		if (urlError) {
+			throw new Error(`Failed to get video URL: ${urlError.message}`);
+		}
+
+		const transcription = await transcribeAudio(urlData.signedUrl);
 
 		if (transcription === "") {
 			throw new Error("Failed to transcribe audio");
 		}
 
-		await bucket.putObject(
-			`${userId}/${videoId}/transcription.vtt`,
-			transcription,
-			{ contentType: "text/vtt" },
-		);
+		// Upload transcription to Supabase Storage
+		const { error: uploadError } = await supabase.storage
+			.from("capso-videos")
+			.upload(`${userId}/${videoId}/transcription.vtt`, transcription, {
+				contentType: "text/vtt",
+				upsert: true,
+			});
+
+		if (uploadError) {
+			throw new Error(`Failed to upload transcription: ${uploadError.message}`);
+		}
 
 		await db()
 			.update(videos)
