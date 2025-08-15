@@ -34,7 +34,7 @@ export const getCurrentUser = cache(
 	}
 );
 
-export const syncUserWithDatabase = async () => {
+export const syncUserWithDatabase = async (): Promise<InferSelectModel<typeof users> | null> => {
 	const clerkUser = await currentUser();
 	
 	if (!clerkUser) return null;
@@ -65,16 +65,21 @@ export const syncUserWithDatabase = async () => {
 	const newUser = {
 		id: clerkUser.id,
 		email: clerkUser.emailAddresses[0]?.emailAddress || "",
-		emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified",
+		emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified" ? new Date() : null,
 		name: clerkUser.firstName || "",
 		lastName: clerkUser.lastName || "",
 		image: clerkUser.imageUrl || "",
 		activeOrganizationId: "",
+		stripeCustomerId: null,
+		stripeSubscriptionId: null,
+		stripeSubscriptionStatus: null,
+		thirdPartyStripeSubscriptionId: null,
+		inviteQuota: 0,
 	};
 
 	await db().insert(users).values(newUser);
 
-	return newUser;
+	return newUser as InferSelectModel<typeof users>;
 };
 
 export const userSelectProps = users.$inferSelect;
