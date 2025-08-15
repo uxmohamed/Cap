@@ -4,7 +4,7 @@ import type { userSelectProps } from "@cap/database/auth/session";
 import { Button, Logo } from "@cap/ui";
 import { LogOut } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { signOut } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -22,6 +22,7 @@ export function InviteAccept({
 	user,
 }: InviteAcceptProps) {
 	const router = useRouter();
+	const { signOut } = useClerk();
 	const [isLoading, setIsLoading] = useState(false);
 
 	const handleAccept = async () => {

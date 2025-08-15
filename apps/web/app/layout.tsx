@@ -6,14 +6,11 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import type { PropsWithChildren } from "react";
 import { SonnerToaster } from "@/components/SonnerToastProvider";
-import { getBootstrapData } from "@/utils/getBootstrapData";
+
 import { PublicEnvContext } from "@/utils/public-env";
 import { ClerkProvider } from "@clerk/nextjs";
 import { PosthogIdentify } from "./Layout/PosthogIdentify";
-import {
-	PostHogProvider,
-	ReactQueryProvider,
-} from "./Layout/providers";
+import { ReactQueryProvider } from "./Layout/providers";
 //@ts-expect-error
 import { script } from "./themeScript";
 
@@ -69,8 +66,6 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function RootLayout({ children }: PropsWithChildren) {
-	const bootstrapData = await getBootstrapData();
-
 	return (
 		<html className={defaultFont.className} lang="en">
 			<head>
@@ -103,21 +98,19 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 				/>
 				<TooltipPrimitive.Provider>
 					<ClerkProvider>
-						<PostHogProvider bootstrapData={bootstrapData}>
-							<PublicEnvContext
-								value={{
-									webUrl: buildEnv.NEXT_PUBLIC_WEB_URL,
-									supabaseUrl: buildEnv.NEXT_PUBLIC_SUPABASE_URL,
-									supabaseStorageBucket: buildEnv.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET,
-								}}
-							>
-								<ReactQueryProvider>
-									<SonnerToaster />
-									<main className="w-full">{children}</main>
-									<PosthogIdentify />
-								</ReactQueryProvider>
-							</PublicEnvContext>
-						</PostHogProvider>
+						<PublicEnvContext
+							value={{
+								webUrl: buildEnv.NEXT_PUBLIC_WEB_URL,
+								supabaseUrl: buildEnv.NEXT_PUBLIC_SUPABASE_URL,
+								supabaseStorageBucket: buildEnv.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET,
+							}}
+						>
+							<ReactQueryProvider>
+								<SonnerToaster />
+								<main className="w-full">{children}</main>
+								<PosthogIdentify />
+							</ReactQueryProvider>
+						</PublicEnvContext>
 					</ClerkProvider>
 				</TooltipPrimitive.Provider>
 				{buildEnv.NEXT_PUBLIC_IS_CAP && (

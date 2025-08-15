@@ -19,7 +19,7 @@ import { MoreVertical } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { signOut } from "@clerk/nextjs";
+import { useClerk } from "@clerk/nextjs";
 import type React from "react";
 import {
 	cloneElement,
@@ -53,6 +53,7 @@ export default function DashboardInner({
 }: {
 	children: React.ReactNode;
 }) {
+	const { signOut } = useClerk();
 	const pathname = usePathname();
 	const { activeOrganization, activeSpace, anyNewNotifications } =
 		useDashboardContext();
