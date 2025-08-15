@@ -2,15 +2,12 @@
 
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
-import { nanoId } from "@cap/database/helpers";
-import {
-	organizationMembers,
-	organizations,
-	users,
-} from "@cap/database/schema";
+import { organizations, organizationMembers, users } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { nanoId } from "@cap/utils";
+import { createClient } from "@supabase/supabase-js";
 // Storage utilities now use Supabase; no direct S3 usage here.
 
 export async function createOrganization(formData: FormData) {
@@ -64,29 +61,29 @@ export async function createOrganization(formData: FormData) {
 		const fileKey = `organizations/${organizationId}/icon-${Date.now()}.${fileExtension}`;
 
 		try {
-			const bucket = await createBucketProvider();
+			const supabase = createClient(
+				serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+				serverEnv().SUPABASE_SERVICE_ROLE!
+			);
 
-			await bucket.putObject(fileKey, await iconFile.bytes(), {
-				contentType: iconFile.type,
-			});
+			const { error } = await supabase.storage
+				.from("capso-videos")
+				.upload(fileKey, await iconFile.bytes(), {
+					contentType: iconFile.type,
+					upsert: true,
+				});
 
-			// Construct the icon URL
-			let iconUrl;
-			if (serverEnv().CAP_AWS_BUCKET_URL) {
-				// If a custom bucket URL is defined, use it
-				iconUrl = `${serverEnv().CAP_AWS_BUCKET_URL}/${fileKey}`;
-			} else if (serverEnv().CAP_AWS_ENDPOINT) {
-				// For custom endpoints like MinIO
-				iconUrl = `${serverEnv().CAP_AWS_ENDPOINT}/${bucket.name}/${fileKey}`;
-			} else {
-				// Default AWS S3 URL format
-				iconUrl = `https://${bucket.name}.s3.${
-					serverEnv().CAP_AWS_REGION || "us-east-1"
-				}.amazonaws.com/${fileKey}`;
+			if (error) {
+				throw new Error(`Failed to upload icon: ${error.message}`);
 			}
 
+			// Get the public URL for the uploaded icon
+			const { data: urlData } = await supabase.storage
+				.from("capso-videos")
+				.getPublicUrl(fileKey);
+
 			// Add the icon URL to the organization values
-			orgValues.iconUrl = iconUrl;
+			orgValues.iconUrl = urlData.publicUrl;
 		} catch (error) {
 			console.error("Error uploading organization icon:", error);
 			throw new Error(error instanceof Error ? error.message : "Upload failed");
