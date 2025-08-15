@@ -1,18 +1,19 @@
 "use server";
 
-import {
-	CloudFrontClient,
-	CreateInvalidationCommand,
-} from "@aws-sdk/client-cloudfront";
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
-import { nanoId } from "@cap/database/helpers";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
-import { userIsPro } from "@cap/utils";
 import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
 import { createSignedUpload } from "@/utils/storage";
+
+interface GetVideoUploadPresignedUrlParams {
+	fileKey: string;
+	duration?: string;
+	resolution?: string;
+	videoCodec?: string;
+	audioCodec?: string;
+}
 
 async function getVideoUploadPresignedUrl({
 	fileKey,
@@ -20,13 +21,7 @@ async function getVideoUploadPresignedUrl({
 	resolution,
 	videoCodec,
 	audioCodec,
-}: {
-	fileKey: string;
-	duration?: string;
-	resolution?: string;
-	videoCodec?: string;
-	audioCodec?: string;
-}) {
+}: GetVideoUploadPresignedUrlParams) {
 	const user = await getCurrentUser();
 
 	if (!user) {
@@ -34,57 +29,8 @@ async function getVideoUploadPresignedUrl({
 	}
 
 	try {
-		const [customBucket] = await db()
-			.select()
-			.from(s3Buckets)
-			.where(eq(s3Buckets.ownerId, user.id));
-
-		const s3Config = customBucket
-			? {
-					endpoint: customBucket.endpoint || undefined,
-					region: customBucket.region,
-					accessKeyId: customBucket.accessKeyId,
-					secretAccessKey: customBucket.secretAccessKey,
-				}
-			: null;
-
-		if (
-			!customBucket ||
-			!s3Config ||
-			customBucket.bucketName !== serverEnv().CAP_AWS_BUCKET
-		) {
-			const distributionId = serverEnv().CAP_CLOUDFRONT_DISTRIBUTION_ID;
-			if (distributionId) {
-				const cloudfront = new CloudFrontClient({
-					region: serverEnv().CAP_AWS_REGION || "us-east-1",
-					credentials: {
-						accessKeyId: serverEnv().CAP_AWS_ACCESS_KEY || "",
-						secretAccessKey: serverEnv().CAP_AWS_SECRET_KEY || "",
-					},
-				});
-
-				const pathToInvalidate = "/" + fileKey;
-
-				try {
-					await cloudfront.send(
-						new CreateInvalidationCommand({
-							DistributionId: distributionId,
-							InvalidationBatch: {
-								CallerReference: `${Date.now()}`,
-								Paths: {
-									Quantity: 1,
-									Items: [pathToInvalidate],
-								},
-							},
-						}),
-					);
-				} catch (error) {
-					console.error("Failed to create CloudFront invalidation:", error);
-				}
-			}
-		}
-
-        // Supabase signed upload only
+		// Supabase signed upload only
+		const signed = await createSignedUpload(fileKey);
 
 		const contentType = fileKey.endsWith(".aac")
 			? "audio/aac"
@@ -98,45 +44,19 @@ async function getVideoUploadPresignedUrl({
 							? "application/x-mpegURL"
 							: "video/mp2t";
 
-		const Fields = {
-			"Content-Type": contentType,
-			"x-amz-meta-userid": user.id,
-			"x-amz-meta-duration": duration ?? "",
-			"x-amz-meta-resolution": resolution ?? "",
-			"x-amz-meta-videocodec": videoCodec ?? "",
-			"x-amz-meta-audiocodec": audioCodec ?? "",
+		// Return Supabase signed upload data
+		return {
+			url: signed.signedUrl,
+			fields: {
+				token: signed.token,
+				"Content-Type": contentType,
+				"x-amz-meta-userid": user.id,
+				"x-amz-meta-duration": duration ?? "",
+				"x-amz-meta-resolution": resolution ?? "",
+				"x-amz-meta-videocodec": videoCodec ?? "",
+				"x-amz-meta-audiocodec": audioCodec ?? "",
+			},
 		};
-
-		const presignedPostData = await bucket.getPresignedPostUrl(fileKey, {
-			Fields,
-			Expires: 1800,
-		});
-
-		const customEndpoint = serverEnv().CAP_AWS_ENDPOINT;
-		if (customEndpoint && !customEndpoint.includes("amazonaws.com")) {
-			if (serverEnv().S3_PATH_STYLE) {
-				presignedPostData.url = `${customEndpoint}/${bucket.name}`;
-			} else {
-				presignedPostData.url = customEndpoint;
-			}
-		}
-
-		const videoId = fileKey.split("/")[1];
-		if (videoId) {
-			try {
-				await fetch(`${serverEnv().WEB_URL}/api/revalidate`, {
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-					},
-					body: JSON.stringify({ videoId }),
-				});
-			} catch (revalidateError) {
-				console.error("Failed to revalidate page:", revalidateError);
-			}
-		}
-
-		return { presignedPostData };
 	} catch (error) {
 		console.error("Error getting presigned URL:", error);
 		throw new Error(
@@ -147,22 +67,18 @@ async function getVideoUploadPresignedUrl({
 
 export async function createVideoAndGetUploadUrl({
 	videoId,
+	fileKey,
 	duration,
 	resolution,
 	videoCodec,
 	audioCodec,
-	isScreenshot = false,
-	isUpload = false,
-	folderId,
 }: {
-	videoId?: string;
-	duration?: number;
+	videoId: string;
+	fileKey: string;
+	duration?: string;
 	resolution?: string;
 	videoCodec?: string;
 	audioCodec?: string;
-	isScreenshot?: boolean;
-	isUpload?: boolean;
-	folderId?: string;
 }) {
 	const user = await getCurrentUser();
 
@@ -170,75 +86,54 @@ export async function createVideoAndGetUploadUrl({
 		throw new Error("Unauthorized");
 	}
 
-	try {
-		if (!userIsPro(user) && duration && duration > 300) {
-			throw new Error("upgrade_required");
+	// Check if video exists and belongs to user
+	const existingVideo = await db()
+		.select()
+		.from(videos)
+		.where(eq(videos.id, videoId))
+		.limit(1);
+
+	if (existingVideo.length > 0) {
+		const video = existingVideo[0];
+		if (video.ownerId !== user.id) {
+			throw new Error("You don't have permission to upload to this video");
 		}
 
-		const [customBucket] = await db()
-			.select()
-			.from(s3Buckets)
-			.where(eq(s3Buckets.ownerId, user.id));
-
-		const date = new Date();
-		const formattedDate = `${date.getDate()} ${date.toLocaleString("default", {
-			month: "long",
-		})} ${date.getFullYear()}`;
-
-		if (videoId) {
-			const [existingVideo] = await db()
-				.select()
-				.from(videos)
-				.where(eq(videos.id, videoId));
-
-			if (existingVideo) {
-				const fileKey = `${user.id}/${videoId}/${
-					isScreenshot ? "screenshot/screen-capture.jpg" : "result.mp4"
-				}`;
-                const signed = await createSignedUpload(fileKey);
-
-				return {
-					id: existingVideo.id,
-                    presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
-				};
-			}
-		}
-
-		const idToUse = videoId || nanoId();
-
-        // No S3 bucket usage; using Supabase storage
-
-		const videoData = {
-			id: idToUse,
-			name: `Cap ${
-				isScreenshot ? "Screenshot" : isUpload ? "Upload" : "Recording"
-			} - ${formattedDate}`,
-			ownerId: user.id,
-			awsBucket: bucket.name,
-			source: { type: "desktopMP4" as const },
-			isScreenshot,
-			bucket: customBucket?.id,
-			public: serverEnv().CAP_VIDEOS_DEFAULT_PUBLIC,
-			...(folderId ? { folderId } : {}),
-		};
-
-		await db().insert(videos).values(videoData);
-
-		const fileKey = `${user.id}/${idToUse}/${
-			isScreenshot ? "screenshot/screen-capture.jpg" : "result.mp4"
-		}`;
-        const signed = await createSignedUpload(fileKey);
-
-		revalidatePath("/dashboard/folder");
+		// Get Supabase signed upload URL
+		const signed = await createSignedUpload(fileKey);
 
 		return {
-			id: idToUse,
-            presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
+			id: existingVideo.id,
+			presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
 		};
-	} catch (error) {
-		console.error("Error creating video and getting upload URL:", error);
-		throw new Error(
-			error instanceof Error ? error.message : "Failed to create video",
-		);
 	}
+
+	// Create new video
+	const newVideo = await db()
+		.insert(videos)
+		.values({
+			id: videoId,
+			name: `Video ${videoId}`,
+			ownerId: user.id,
+			awsRegion: "auto",
+			awsBucket: "capso-videos",
+			bucket: null, // No longer using S3 buckets
+			public: serverEnv().CAP_VIDEOS_DEFAULT_PUBLIC,
+			metadata: {
+				duration: duration ? parseFloat(duration) : undefined,
+			},
+		})
+		.returning();
+
+	if (newVideo.length === 0) {
+		throw new Error("Failed to create video");
+	}
+
+	// Get Supabase signed upload URL
+	const signed = await createSignedUpload(fileKey);
+
+	return {
+		id: newVideo[0].id,
+		presignedPostData: { url: signed.signedUrl, fields: { token: signed.token } },
+	};
 }
