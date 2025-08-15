@@ -3,11 +3,11 @@ import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 
 export const dynamic = "force-dynamic";
 
-export default async function LoginPage() {
+export default async function SignUpPage() {
 	const session = await getCurrentUser();
 	if (session) {
 		redirect("/dashboard");
@@ -23,7 +23,7 @@ export default async function LoginPage() {
 					Home
 				</Link>
 			</div>
-			<SignIn 
+			<SignUp 
 				appearance={{
 					elements: {
 						rootBox: "mx-auto",

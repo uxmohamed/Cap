@@ -3,7 +3,6 @@ import { auth, currentUser } from "@clerk/nextjs/server";
 import { cache } from "react";
 import { db } from "../";
 import { users } from "../schema";
-import { nanoId } from "../helpers";
 
 export const getSession = async () => {
 	const { userId } = await auth();
@@ -35,51 +34,71 @@ export const getCurrentUser = cache(
 );
 
 export const syncUserWithDatabase = async (): Promise<InferSelectModel<typeof users> | null> => {
-	const clerkUser = await currentUser();
-	
-	if (!clerkUser) return null;
-
-	// Check if user exists in database
-	const [existingUser] = await db()
-		.select()
-		.from(users)
-		.where(eq(users.id, clerkUser.id))
-		.limit(1);
-
-	if (existingUser) {
-		// Update user if needed
-		await db()
-			.update(users)
-			.set({
-				email: clerkUser.emailAddresses[0]?.emailAddress || existingUser.email,
-				name: clerkUser.firstName || existingUser.name,
-				lastName: clerkUser.lastName || existingUser.lastName,
-				image: clerkUser.imageUrl || existingUser.image,
-			})
-			.where(eq(users.id, clerkUser.id));
+	try {
+		console.log("🔍 Starting user sync...");
 		
-		return existingUser;
+		const clerkUser = await currentUser();
+		console.log("👤 Clerk user:", clerkUser ? { id: clerkUser.id, email: clerkUser.emailAddresses[0]?.emailAddress } : "null");
+		
+		if (!clerkUser) {
+			console.log("❌ No Clerk user found");
+			return null;
+		}
+
+		// Check if user exists in database
+		const [existingUser] = await db()
+			.select()
+			.from(users)
+			.where(eq(users.id, clerkUser.id))
+			.limit(1);
+
+		console.log("🔍 Existing user in DB:", existingUser ? "found" : "not found");
+
+		if (existingUser) {
+			console.log("✅ User exists, updating...");
+			// Update user if needed
+			await db()
+				.update(users)
+				.set({
+					email: clerkUser.emailAddresses[0]?.emailAddress || existingUser.email,
+					emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified" ? new Date() : null,
+					name: clerkUser.firstName || existingUser.name,
+					lastName: clerkUser.lastName || existingUser.lastName,
+					image: clerkUser.imageUrl || existingUser.image,
+				})
+				.where(eq(users.id, clerkUser.id));
+			
+			console.log("✅ User updated successfully");
+			return existingUser;
+		}
+
+		console.log("🆕 Creating new user...");
+		// Create new user with all required fields
+		const newUser = {
+			id: clerkUser.id,
+			email: clerkUser.emailAddresses[0]?.emailAddress || "",
+			emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified" ? new Date() : null,
+			name: clerkUser.firstName || "",
+			lastName: clerkUser.lastName || "",
+			image: clerkUser.imageUrl || "",
+			activeOrganizationId: "",
+			stripeCustomerId: null,
+			stripeSubscriptionId: null,
+			stripeSubscriptionStatus: null,
+			thirdPartyStripeSubscriptionId: null,
+			inviteQuota: 0,
+		};
+
+		console.log("📝 New user data:", { id: newUser.id, email: newUser.email, name: newUser.name });
+
+		await db().insert(users).values(newUser);
+		console.log("✅ New user created successfully");
+		
+		return newUser as InferSelectModel<typeof users>;
+	} catch (error) {
+		console.error("❌ Error in syncUserWithDatabase:", error);
+		return null;
 	}
-
-	// Create new user
-	const newUser = {
-		id: clerkUser.id,
-		email: clerkUser.emailAddresses[0]?.emailAddress || "",
-		emailVerified: clerkUser.emailAddresses[0]?.verification?.status === "verified" ? new Date() : null,
-		name: clerkUser.firstName || "",
-		lastName: clerkUser.lastName || "",
-		image: clerkUser.imageUrl || "",
-		activeOrganizationId: "",
-		stripeCustomerId: null,
-		stripeSubscriptionId: null,
-		stripeSubscriptionStatus: null,
-		thirdPartyStripeSubscriptionId: null,
-		inviteQuota: 0,
-	};
-
-	await db().insert(users).values(newUser);
-
-	return newUser as InferSelectModel<typeof users>;
 };
 
 export const userSelectProps = users.$inferSelect;
