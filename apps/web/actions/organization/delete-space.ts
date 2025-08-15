@@ -10,7 +10,8 @@ import {
 } from "@cap/database/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { createBucketProvider } from "@/utils/s3";
+import { createClient } from "@supabase/supabase-js";
+import { serverEnv } from "@cap/env";
 
 interface DeleteSpaceResponse {
 	success: boolean;
@@ -65,30 +66,39 @@ export async function deleteSpace(
 		// 3. Delete all space folders
 		await db().delete(folders).where(eq(folders.spaceId, spaceId));
 
-		// 4. Delete space icons from S3
+		// 4. Delete space icons from Supabase Storage
 		try {
-			const bucketProvider = await createBucketProvider();
+			const supabase = createClient(
+				serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+				serverEnv().SUPABASE_SERVICE_ROLE!
+			);
 
 			// List all objects with the space prefix
+			const { data: objects, error } = await supabase.storage
+				.from("capso-videos")
+				.list(`organizations/${user.activeOrganizationId}/spaces/${spaceId}/`);
 
-			const listedObjects = await bucketProvider.listObjects({
-				prefix: `organizations/${user.activeOrganizationId}/spaces/${spaceId}/`,
-			});
+			if (error) {
+				console.error("Error listing space objects:", error);
+			} else if (objects && objects.length > 0) {
+				// Delete all objects in the space folder
+				const objectPaths = objects.map(obj => `organizations/${user.activeOrganizationId}/spaces/${spaceId}/${obj.name}`);
+				
+				const { error: deleteError } = await supabase.storage
+					.from("capso-videos")
+					.remove(objectPaths);
 
-			if (listedObjects.Contents?.length) {
-				await bucketProvider.deleteObjects(
-					listedObjects.Contents.map((content) => ({
-						Key: content.Key,
-					})),
-				);
-
-				console.log(
-					`Deleted ${listedObjects.Contents.length} objects for space ${spaceId}`,
-				);
+				if (deleteError) {
+					console.error("Error deleting space objects:", deleteError);
+				} else {
+					console.log(
+						`Deleted ${objects.length} objects for space ${spaceId}`,
+					);
+				}
 			}
 		} catch (error) {
-			console.error("Error deleting space icons from S3:", error);
-			// Continue with space deletion even if S3 deletion fails
+			console.error("Error deleting space icons from Supabase Storage:", error);
+			// Continue with space deletion even if storage deletion fails
 		}
 
 		await db().delete(spaces).where(eq(spaces.id, spaceId));

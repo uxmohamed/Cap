@@ -8,7 +8,7 @@ import { serverEnv } from "@cap/env";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
-import { createBucketProvider } from "@/utils/s3";
+import { createClient } from "@supabase/supabase-js";
 
 interface CreateSpaceResponse {
 	success: boolean;
@@ -89,25 +89,28 @@ export async function createSpace(
 					user.activeOrganizationId
 				}/spaces/${spaceId}/icon-${Date.now()}.${fileExtension}`;
 
-				const bucket = await createBucketProvider();
+				const supabase = createClient(
+					serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+					serverEnv().SUPABASE_SERVICE_ROLE!
+				);
 
-				await bucket.putObject(fileKey, await iconFile.bytes(), {
-					contentType: iconFile.type,
-				});
+				const { error } = await supabase.storage
+					.from("capso-videos")
+					.upload(fileKey, await iconFile.bytes(), {
+						contentType: iconFile.type,
+						upsert: true,
+					});
 
-				// Construct the icon URL
-				if (serverEnv().CAP_AWS_BUCKET_URL) {
-					// If a custom bucket URL is defined, use it
-					iconUrl = `${serverEnv().CAP_AWS_BUCKET_URL}/${fileKey}`;
-				} else if (serverEnv().CAP_AWS_ENDPOINT) {
-					// For custom endpoints like MinIO
-					iconUrl = `${serverEnv().CAP_AWS_ENDPOINT}/${bucket.name}/${fileKey}`;
-				} else {
-					// Default AWS S3 URL format
-					iconUrl = `https://${bucket.name}.s3.${
-						serverEnv().CAP_AWS_REGION || "us-east-1"
-					}.amazonaws.com/${fileKey}`;
+				if (error) {
+					throw new Error(`Failed to upload icon: ${error.message}`);
 				}
+
+				// Get the public URL for the uploaded icon
+				const { data: urlData } = await supabase.storage
+					.from("capso-videos")
+					.getPublicUrl(fileKey);
+
+				iconUrl = urlData.publicUrl;
 			} catch (error) {
 				console.error("Error uploading space icon:", error);
 				return {
