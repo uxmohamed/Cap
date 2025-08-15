@@ -1,8 +1,8 @@
 import { db } from "@cap/database";
 import { videos } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
-import { S3_BUCKET_URL } from "@cap/utils";
 import { eq } from "drizzle-orm";
+import { createClient } from "@supabase/supabase-js";
 import type { NextRequest } from "next/server";
 import { CACHE_CONTROL_HEADERS, getHeaders } from "@/utils/helpers";
 
@@ -60,17 +60,49 @@ export async function GET(request: NextRequest) {
 	}
 
 	if (video.jobStatus === "COMPLETE") {
-		const playlistUrl = `${S3_BUCKET_URL}/${video.ownerId}/${video.id}/output/video_recording_000_output.m3u8`;
-		return new Response(
-			JSON.stringify({ playlistOne: playlistUrl, playlistTwo: null }),
-			{
-				status: 200,
-				headers: {
-					...getHeaders(origin),
-					...CACHE_CONTROL_HEADERS,
-				},
-			},
+		const supabase = createClient(
+			serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+			serverEnv().SUPABASE_SERVICE_ROLE!
 		);
+
+		const playlistKey = `${video.ownerId}/${video.id}/output/video_recording_000_output.m3u8`;
+		
+		try {
+			const { data: urlData, error } = await supabase.storage
+				.from("capso-videos")
+				.createSignedUrl(playlistKey, 3600); // 1 hour expiry
+
+			if (error) {
+				console.error("Error generating playlist URL:", error);
+				return new Response(
+					JSON.stringify({ error: true, message: "Failed to generate playlist URL" }),
+					{
+						status: 500,
+						headers: getHeaders(origin),
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({ playlistOne: urlData.signedUrl, playlistTwo: null }),
+				{
+					status: 200,
+					headers: {
+						...getHeaders(origin),
+						...CACHE_CONTROL_HEADERS,
+					},
+				},
+			);
+		} catch (error) {
+			console.error("Error generating playlist URL:", error);
+			return new Response(
+				JSON.stringify({ error: true, message: "Failed to generate playlist URL" }),
+				{
+					status: 500,
+					headers: getHeaders(origin),
+				},
+			);
+		}
 	}
 
 	return new Response(

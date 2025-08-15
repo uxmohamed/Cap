@@ -1,19 +1,17 @@
 import { db } from "@cap/database";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
-import { S3_BUCKET_URL } from "@cap/utils";
 import { eq } from "drizzle-orm";
-import type { NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { getHeaders } from "@/utils/helpers";
-// Using Supabase storage; S3 utils removed.
 
 export const revalidate = 0;
 
-export async function GET(request: NextRequest) {
-	const { searchParams } = request.nextUrl;
+export async function GET(request: Request) {
+	const { searchParams } = new URL(request.url);
 	const userId = searchParams.get("userId");
 	const videoId = searchParams.get("videoId");
-	const origin = request.headers.get("origin") as string;
+	const origin = request.headers.get("origin") || "*";
 
 	if (!userId || !videoId) {
 		return new Response(
@@ -29,12 +27,8 @@ export async function GET(request: NextRequest) {
 	}
 
 	const query = await db()
-		.select({
-			video: videos,
-			bucket: s3Buckets,
-		})
+		.select()
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, videoId));
 
 	if (query.length === 0) {
@@ -47,8 +41,8 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	const result = query[0];
-	if (!result?.video) {
+	const video = query[0];
+	if (!video) {
 		return new Response(
 			JSON.stringify({ error: true, message: "Video not found" }),
 			{
@@ -58,32 +52,37 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	const { video } = result;
 	const prefix = `${userId}/${videoId}/`;
+	const thumbnailKey = `${prefix}screenshot/screen-capture.jpg`;
 
-	let thumbnailUrl: string;
-
-	if (!result.bucket || video.awsBucket === serverEnv().CAP_AWS_BUCKET) {
-		thumbnailUrl = `${S3_BUCKET_URL}/${prefix}screenshot/screen-capture.jpg`;
-		return new Response(JSON.stringify({ screen: thumbnailUrl }), {
-			status: 200,
-			headers: getHeaders(origin),
-		});
-	}
-
-	const bucketProvider = await createBucketProvider(result.bucket);
+	const supabase = createClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
 
 	try {
-		const listResponse = await bucketProvider.listObjects({
-			prefix: prefix,
-		});
-		const contents = listResponse.Contents || [];
+		// Check if thumbnail exists
+		const { data: exists, error: headError } = await supabase.storage
+			.from("capso-videos")
+			.list(prefix);
 
-		const thumbnailKey = contents.find((item: any) =>
-			item.Key?.endsWith("screen-capture.jpg"),
-		)?.Key;
+		if (headError) {
+			return new Response(
+				JSON.stringify({
+					error: true,
+					message: "Error checking thumbnail existence",
+					details: headError.message,
+				}),
+				{
+					status: 500,
+					headers: getHeaders(origin),
+				},
+			);
+		}
 
-		if (!thumbnailKey) {
+		const thumbnailExists = exists?.some(item => item.name === "screen-capture.jpg");
+
+		if (!thumbnailExists) {
 			return new Response(
 				JSON.stringify({
 					error: true,
@@ -96,7 +95,29 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		thumbnailUrl = await bucketProvider.getSignedObjectUrl(thumbnailKey);
+		// Generate signed URL for thumbnail
+		const { data: urlData, error: urlError } = await supabase.storage
+			.from("capso-videos")
+			.createSignedUrl(thumbnailKey, 3600); // 1 hour expiry
+
+		if (urlError) {
+			return new Response(
+				JSON.stringify({
+					error: true,
+					message: "Error generating thumbnail URL",
+					details: urlError.message,
+				}),
+				{
+					status: 500,
+					headers: getHeaders(origin),
+				},
+			);
+		}
+
+		return new Response(JSON.stringify({ screen: urlData.signedUrl }), {
+			status: 200,
+			headers: getHeaders(origin),
+		});
 	} catch (error) {
 		return new Response(
 			JSON.stringify({
@@ -110,9 +131,4 @@ export async function GET(request: NextRequest) {
 			},
 		);
 	}
-
-	return new Response(JSON.stringify({ screen: thumbnailUrl }), {
-		status: 200,
-		headers: getHeaders(origin),
-	});
 }

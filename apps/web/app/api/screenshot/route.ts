@@ -1,16 +1,15 @@
 import { db } from "@cap/database";
 import { getCurrentUser } from "@cap/database/auth/session";
-import { s3Buckets, videos } from "@cap/database/schema";
+import { videos } from "@cap/database/schema";
 import { serverEnv } from "@cap/env";
-import { S3_BUCKET_URL } from "@cap/utils";
 import { eq } from "drizzle-orm";
-import type { NextRequest } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { getHeaders } from "@/utils/helpers";
-// Supabase storage path; S3 removed.
+import type { NextRequest } from "next/server";
 
 export const revalidate = 0;
 
-export async function OPTIONS(request: NextRequest) {
+export async function POST(request: NextRequest) {
 	const origin = request.headers.get("origin") as string;
 
 	return new Response(null, {
@@ -36,9 +35,8 @@ export async function GET(request: NextRequest) {
 	}
 
 	const query = await db()
-		.select({ video: videos, bucket: s3Buckets })
+		.select()
 		.from(videos)
-		.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 		.where(eq(videos.id, videoId));
 
 	if (query.length === 0) {
@@ -48,15 +46,13 @@ export async function GET(request: NextRequest) {
 		);
 	}
 
-	const result = query[0];
-	if (!result?.video) {
+	const video = query[0];
+	if (!video) {
 		return new Response(
 			JSON.stringify({ error: true, message: "Video not found" }),
 			{ status: 401, headers: getHeaders(origin) },
 		);
 	}
-
-	const { video, bucket } = result;
 
 	if (video.public === false) {
 		const user = await getCurrentUser();
@@ -69,16 +65,31 @@ export async function GET(request: NextRequest) {
 		}
 	}
 
-	const bucketProvider = await createBucketProvider(bucket);
+	const supabase = createClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
+
 	const screenshotPrefix = `${userId}/${videoId}/`;
 
 	try {
-		const objects = await bucketProvider.listObjects({
-			prefix: screenshotPrefix,
-		});
+		const { data: objects, error } = await supabase.storage
+			.from("capso-videos")
+			.list(screenshotPrefix);
 
-		const screenshot = objects.Contents?.find((object) =>
-			object.Key?.endsWith(".png"),
+		if (error) {
+			return new Response(
+				JSON.stringify({
+					error: true,
+					message: "Error listing screenshots",
+					details: error.message,
+				}),
+				{ status: 500, headers: getHeaders(origin) },
+			);
+		}
+
+		const screenshot = objects?.find((object) =>
+			object.name?.endsWith(".png"),
 		);
 
 		if (!screenshot) {
@@ -88,15 +99,23 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		let screenshotUrl: string;
+		const screenshotKey = `${screenshotPrefix}${screenshot.name}`;
+		const { data: urlData, error: urlError } = await supabase.storage
+			.from("capso-videos")
+			.createSignedUrl(screenshotKey, 3600); // 1 hour expiry
 
-		if (video.awsBucket !== serverEnv().CAP_AWS_BUCKET) {
-			screenshotUrl = await bucketProvider.getSignedObjectUrl(screenshot.Key!);
-		} else {
-			screenshotUrl = `${S3_BUCKET_URL}/${screenshot.Key}`;
+		if (urlError) {
+			return new Response(
+				JSON.stringify({
+					error: true,
+					message: "Error generating screenshot URL",
+					details: urlError.message,
+				}),
+				{ status: 500, headers: getHeaders(origin) },
+			);
 		}
 
-		return new Response(JSON.stringify({ url: screenshotUrl }), {
+		return new Response(JSON.stringify({ url: urlData.signedUrl }), {
 			status: 200,
 			headers: getHeaders(origin),
 		});

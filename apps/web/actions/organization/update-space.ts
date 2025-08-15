@@ -9,6 +9,8 @@ import { revalidatePath } from "next/cache";
 import { v4 as uuidv4 } from "uuid";
 // Supabase storage used for icons; s3 util removed.
 import { uploadSpaceIcon } from "./upload-space-icon";
+import { createClient } from "@supabase/supabase-js";
+import { serverEnv } from "@cap/env";
 
 export async function updateSpace(formData: FormData) {
 	const user = await getCurrentUser();
@@ -45,17 +47,23 @@ export async function updateSpace(formData: FormData) {
 
 	// Handle icon removal if requested
 	if (formData.get("removeIcon") === "true") {
-		// Remove icon from S3 and set iconUrl to null
+		// Remove icon from Supabase Storage and set iconUrl to null
 		const spaceArr = await db().select().from(spaces).where(eq(spaces.id, id));
 		const space = spaceArr[0];
 		if (space && space.iconUrl) {
 			try {
-				const bucketProvider = await createBucketProvider();
+				const supabase = createClient(
+					serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+					serverEnv().SUPABASE_SERVICE_ROLE!
+				);
 				const prevKeyMatch = space.iconUrl.match(/organizations\/.+/);
-				if (prevKeyMatch && prevKeyMatch[0])
-					await bucketProvider.deleteObject(prevKeyMatch[0]);
+				if (prevKeyMatch && prevKeyMatch[0]) {
+					await supabase.storage
+						.from("capso-videos")
+						.remove([prevKeyMatch[0]]);
+				}
 			} catch (e) {
-				console.warn("Failed to delete old space icon from S3", e);
+				console.warn("Failed to delete old space icon from Supabase Storage", e);
 			}
 		}
 		await db().update(spaces).set({ iconUrl: null }).where(eq(spaces.id, id));
