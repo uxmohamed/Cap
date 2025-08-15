@@ -68,44 +68,8 @@ app.post(
 					}
 				: null;
 
-			if (
-				!customBucket ||
-				!s3Config ||
-				customBucket.bucketName !== serverEnv().CAP_AWS_BUCKET
-			) {
-				const distributionId = serverEnv().CAP_CLOUDFRONT_DISTRIBUTION_ID;
-				if (distributionId) {
-					console.log("Creating CloudFront invalidation for", fileKey);
-
-					const cloudfront = new CloudFrontClient({
-						region: serverEnv().CAP_AWS_REGION || "us-east-1",
-						credentials: {
-							accessKeyId: serverEnv().CAP_AWS_ACCESS_KEY || "",
-							secretAccessKey: serverEnv().CAP_AWS_SECRET_KEY || "",
-						},
-					});
-
-					const pathToInvalidate = "/" + fileKey;
-
-					try {
-						const invalidation = await cloudfront.send(
-							new CreateInvalidationCommand({
-								DistributionId: distributionId,
-								InvalidationBatch: {
-									CallerReference: `${Date.now()}`,
-									Paths: {
-										Quantity: 1,
-										Items: [pathToInvalidate],
-									},
-								},
-							}),
-						);
-						console.log("CloudFront invalidation created:", invalidation);
-					} catch (error) {
-						console.error("Failed to create CloudFront invalidation:", error);
-					}
-				}
-			}
+			// CloudFront invalidation removed - using Supabase Storage now
+			// No need for S3-specific invalidation logic
 
 			const contentType = fileKey.endsWith(".aac")
 				? "audio/aac"
