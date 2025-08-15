@@ -1,0 +1,5 @@
+{
+  "buildCommand": "cd ../.. && pnpm install && pnpm --filter @cap/web build",
+  "installCommand": "cd ../.. && pnpm install",
+  "framework": "nextjs"
+}
