@@ -36,10 +36,6 @@ const ApiLive = HttpApiBuilder.api(Api).pipe(
 								Effect.logError(e).pipe(
 									Effect.andThen(() => new HttpApiError.InternalServerError()),
 								),
-							S3Error: (e) =>
-								Effect.logError(e).pipe(
-									Effect.andThen(() => new HttpApiError.InternalServerError()),
-								),
 							UnknownException: (e) =>
 								Effect.logError(e).pipe(
 									Effect.andThen(() => new HttpApiError.InternalServerError()),

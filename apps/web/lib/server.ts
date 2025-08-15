@@ -6,7 +6,6 @@ import {
 	DatabaseError,
 	Folders,
 	HttpAuthMiddlewareLive,
-	S3Buckets,
 	Videos,
 } from "@cap/web-backend";
 import type { HttpAuthMiddleware } from "@cap/web-domain";
@@ -32,7 +31,6 @@ const DatabaseLive = Layer.sync(Database, () => ({
 const TracingLayer = NodeSdk.layer(getTracingConfig);
 
 export const Dependencies = Layer.mergeAll(
-	S3Buckets.Default,
 	Videos.Default,
 	Folders.Default,
 	TracingLayer,
