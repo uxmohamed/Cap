@@ -1,7 +1,5 @@
 import { CurrentUser, Policy, Video } from "@cap/web-domain";
 import { Array, Effect, Option } from "effect";
-import { S3Buckets } from "../S3Buckets";
-import { S3BucketAccess } from "../S3Buckets/S3BucketAccess";
 import { VideosPolicy } from "./VideosPolicy";
 import { VideosRepo } from "./VideosRepo";
 
@@ -9,7 +7,6 @@ export class Videos extends Effect.Service<Videos>()("Videos", {
 	effect: Effect.gen(function* () {
 		const repo = yield* VideosRepo;
 		const policy = yield* VideosPolicy;
-		const s3Buckets = yield* S3Buckets;
 
 		return {
 			/*
@@ -27,36 +24,10 @@ export class Videos extends Effect.Service<Videos>()("Videos", {
 			 * Delete a video. Will fail if the user does not have access.
 			 */
 			delete: Effect.fn("Videos.delete")(function* (videoId: Video.VideoId) {
-				const [video] = yield* repo
-					.getById(videoId)
-					.pipe(
-						Effect.flatMap(Effect.catchAll(() => new Video.NotFoundError())),
-					);
-
-				const [S3ProviderLayer] = yield* s3Buckets.getProviderLayer(
-					video.bucketId,
-				);
-
+				// TODO: Implement Supabase Storage deletion
 				yield* repo
-					.delete(video.id)
-					.pipe(Policy.withPolicy(policy.isOwner(video.id)));
-
-				yield* Effect.gen(function* () {
-					const s3 = yield* S3BucketAccess;
-					const user = yield* CurrentUser;
-
-					const prefix = `${user.id}/${video.id}/`;
-
-					const listedObjects = yield* s3.listObjects({ prefix });
-
-					if (listedObjects.Contents?.length) {
-						yield* s3.deleteObjects(
-							listedObjects.Contents.map((content) => ({
-								Key: content.Key,
-							})),
-						);
-					}
-				}).pipe(Effect.provide(S3ProviderLayer));
+					.delete(videoId)
+					.pipe(Policy.withPolicy(policy.isOwner(videoId)));
 			}),
 
 			/*
@@ -73,35 +44,12 @@ export class Videos extends Effect.Service<Videos>()("Videos", {
 						Policy.withPolicy(policy.isOwner(videoId)),
 					);
 
-				const [S3ProviderLayer] = yield* s3Buckets.getProviderLayer(
-					video.bucketId,
-				);
-
-				// Don't duplicate password or sharing data
+				// TODO: Implement Supabase Storage duplication
 				const newVideoId = yield* repo.create(yield* video.toJS());
-
-				yield* Effect.gen(function* () {
-					const s3 = yield* S3BucketAccess;
-					const bucketName = yield* s3.bucketName;
-
-					const prefix = `${video.ownerId}/${video.id}/`;
-					const newPrefix = `${video.ownerId}/${newVideoId}/`;
-
-					const allObjects = yield* s3.listObjects({ prefix });
-
-					if (allObjects.Contents)
-						yield* Effect.all(
-							Array.filterMap(allObjects.Contents, (obj) =>
-								Option.map(Option.fromNullable(obj.Key), (key) => {
-									const newKey = key.replace(prefix, newPrefix);
-									return s3.copyObject(`${bucketName}/${obj.Key}`, newKey);
-								}),
-							),
-							{ concurrency: 1 },
-						);
-				}).pipe(Effect.provide(S3ProviderLayer));
+				
+				return newVideoId;
 			}),
 		};
 	}),
-	dependencies: [VideosPolicy.Default, VideosRepo.Default, S3Buckets.Default],
+	dependencies: [VideosPolicy.Default, VideosRepo.Default],
 }) { }
