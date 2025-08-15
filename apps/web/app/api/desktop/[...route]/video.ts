@@ -1,61 +1,41 @@
 import { db } from "@cap/database";
-import { sendEmail } from "@cap/database/emails/config";
-import { FirstShareableLink } from "@cap/database/emails/first-shareable-link";
-import { nanoId } from "@cap/database/helpers";
 import { s3Buckets, videos } from "@cap/database/schema";
-import { buildEnv, NODE_ENV, serverEnv } from "@cap/env";
+import { buildEnv, serverEnv } from "@cap/env";
+import { dub } from "@cap/utils";
+import { count, eq, and } from "drizzle-orm";
 import { zValidator } from "@hono/zod-validator";
-import { and, count, eq } from "drizzle-orm";
 import { Hono } from "hono";
 import { z } from "zod";
-import { dub } from "@/utils/dub";
-// Supabase storage in use; no direct S3 provider required here.
-
-import { withAuth } from "../../utils";
+import { withAuth } from "@/app/api/utils";
+import { nanoId } from "@cap/utils";
+import { sendEmail } from "@cap/utils";
+import { FirstShareableLink } from "@cap/utils";
+import { createClient } from "@supabase/supabase-js";
 
 export const app = new Hono().use(withAuth);
 
-app.get(
+app.post(
 	"/create",
 	zValidator(
-		"query",
+		"json",
 		z.object({
-			duration: z.coerce.number().optional(),
-			recordingMode: z
-				.union([z.literal("hls"), z.literal("desktopMP4")])
-				.optional(),
-			isScreenshot: z.coerce.boolean().default(false),
-			videoId: z.string().optional(),
 			name: z.string().optional(),
+			videoId: z.string().optional(),
+			recordingMode: z.enum(["hls", "desktopMP4"]).optional(),
+			isScreenshot: z.boolean().optional(),
+			duration: z.number().optional(),
 		}),
 	),
 	async (c) => {
+		const { name, videoId, recordingMode, isScreenshot, duration } =
+			c.req.valid("json");
+		const user = c.get("user");
+
 		try {
-			const { duration, recordingMode, isScreenshot, videoId, name } =
-				c.req.valid("query");
-			const user = c.get("user");
-
-			console.log("Video create request:", {
-				duration,
-				recordingMode,
-				isScreenshot,
-				videoId,
-				userId: user.id,
-			});
-
-			const isUpgraded = user.stripeSubscriptionStatus === "active";
-
-			if (!isUpgraded && duration && duration > 300)
-				return c.json({ error: "upgrade_required" }, { status: 403 });
-
-			const [customBucket] = await db()
-				.select()
-				.from(s3Buckets)
-				.where(eq(s3Buckets.ownerId, user.id));
-
-			console.log("User bucket:", customBucket ? "found" : "not found");
-
-			const bucket = await createBucketProvider(customBucket);
+			const supabase = createClient(
+				serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+				serverEnv().SUPABASE_SERVICE_ROLE!
+			);
 
 			const date = new Date();
 			const formattedDate = `${date.getDate()} ${date.toLocaleString(
@@ -93,7 +73,7 @@ app.get(
 					name: videoName,
 					ownerId: user.id,
 					awsRegion: "auto",
-					awsBucket: bucket.name,
+					awsBucket: "capso-videos",
 					source:
 						recordingMode === "hls"
 							? { type: "local" as const }
@@ -101,7 +81,7 @@ app.get(
 								? { type: "desktopMP4" as const }
 								: undefined,
 					isScreenshot,
-					bucket: customBucket?.id,
+					bucket: null, // No longer using S3 buckets
 					public: serverEnv().CAP_VIDEOS_DEFAULT_PUBLIC,
 					metadata: {
 						duration,
@@ -180,13 +160,12 @@ app.delete(
 		const user = c.get("user");
 
 		try {
-			const [result] = await db()
-				.select({ video: videos, bucket: s3Buckets })
+			const [video] = await db()
+				.select()
 				.from(videos)
-				.leftJoin(s3Buckets, eq(videos.bucket, s3Buckets.id))
 				.where(eq(videos.id, videoId));
 
-			if (!result)
+			if (!video)
 				return c.json(
 					{ error: true, message: "Video not found" },
 					{ status: 404 },
@@ -196,18 +175,33 @@ app.delete(
 				.delete(videos)
 				.where(and(eq(videos.id, videoId), eq(videos.ownerId, user.id)));
 
-			const bucket = await createBucketProvider(result.bucket);
+			// Delete video files from Supabase Storage
+			const supabase = createClient(
+				serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+				serverEnv().SUPABASE_SERVICE_ROLE!
+			);
 
-			const listedObjects = await bucket.listObjects({
-				prefix: `${user.id}/${videoId}/`,
-			});
+			try {
+				const { data: objects, error } = await supabase.storage
+					.from("capso-videos")
+					.list(`${user.id}/${videoId}/`);
 
-			if (listedObjects.Contents?.length)
-				await bucket.deleteObjects(
-					listedObjects.Contents.map((content: any) => ({
-						Key: content.Key,
-					})),
-				);
+				if (error) {
+					console.error("Error listing video objects:", error);
+				} else if (objects && objects.length > 0) {
+					const objectPaths = objects.map(obj => `${user.id}/${videoId}/${obj.name}`);
+					
+					const { error: deleteError } = await supabase.storage
+						.from("capso-videos")
+						.remove(objectPaths);
+
+					if (deleteError) {
+						console.error("Error deleting video objects:", deleteError);
+					}
+				}
+			} catch (storageError) {
+				console.error("Error deleting video from storage:", storageError);
+			}
 
 			return c.json(true);
 		} catch (error) {

@@ -16,15 +16,16 @@ export function getSupabaseAnon() {
   return createClient(url, anon, { auth: { persistSession: false } });
 }
 
-export const SUPABASE_BUCKET = process.env.CAP_AWS_BUCKET || "capso-videos";
+export const SUPABASE_BUCKET = "capso-videos";
 
 // Create a signed upload URL (Supabase Storage signed upload)
 export async function createSignedUpload(path: string) {
   const supabase = getSupabaseAdmin();
   const { data, error } = await supabase.storage
     .from(SUPABASE_BUCKET)
-    // 30 minutes
-    .createSignedUploadUrl(path, 60 * 30);
+    .createSignedUploadUrl(path, {
+      upsert: true,
+    });
   if (error) throw error;
   return data; // { signedUrl, path, token }
 }
