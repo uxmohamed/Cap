@@ -23,7 +23,6 @@
 		"@cap/utils": "workspace:*",
 		"@cap/web-api-contract": "workspace:*",
 		"@cap/web-api-contract-effect": "workspace:*",
-		"@cap/web-backend": "workspace:*",
 		"@cap/web-domain": "workspace:*",
 		"@clerk/nextjs": "^6.31.1",
 		"@deepgram/sdk": "^3.3.4",

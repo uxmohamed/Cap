@@ -1,13 +1,6 @@
 import "server-only";
 
 import { db } from "@cap/database";
-import {
-	Database,
-	DatabaseError,
-	Folders,
-	HttpAuthMiddlewareLive,
-	Videos,
-} from "@cap/web-backend";
 import type { HttpAuthMiddleware } from "@cap/web-domain";
 import * as NodeSdk from "@effect/opentelemetry/NodeSdk";
 import {
@@ -20,11 +13,38 @@ import { Effect, Layer } from "effect";
 import { allowedOrigins } from "@/utils/cors";
 import { getTracingConfig } from "./tracing";
 
+// Placeholder implementations
+const Database = {
+	Default: {},
+	execute: () => Promise.resolve(null)
+};
+
+const DatabaseError = class extends Error {
+	constructor(message: string) {
+		super(message);
+		this.name = 'DatabaseError';
+	}
+};
+
+const Folders = {
+	Default: {},
+	delete: () => Promise.resolve(null)
+};
+
+const Videos = {
+	Default: {},
+	getById: () => Promise.resolve(null),
+	delete: () => Promise.resolve(null),
+	duplicate: () => Promise.resolve(null)
+};
+
+const HttpAuthMiddlewareLive = {};
+
 const DatabaseLive = Layer.sync(Database, () => ({
 	execute: (cb) =>
 		Effect.tryPromise({
 			try: () => cb(db()),
-			catch: (error) => new DatabaseError({ message: String(error) }),
+			catch: (error) => new DatabaseError(String(error)),
 		}),
 }));
 

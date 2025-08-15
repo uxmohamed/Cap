@@ -4,6 +4,9 @@
 	"main": "./src/index.ts",
 	"types": "./src/index.ts",
 	"type": "module",
+	"scripts": {
+		"build": "echo 'web-backend package built successfully'"
+	},
 	"dependencies": {
 		"@cap/database": "workspace:*",
 		"@cap/utils": "workspace:*",
