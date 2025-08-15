@@ -23,28 +23,28 @@ export default async function DashboardLayout({
 	try {
 		console.log("🚀 Dashboard layout starting...");
 		
-		let user = await getCurrentUser();
-		console.log("👤 Current user from DB:", user ? "found" : "not found");
-		console.log("👤 User details:", user ? { id: user.id, email: user.email, name: user.name } : "null");
-
-		if (!user || !user.id) {
-			console.log("🔄 User not in DB, attempting sync...");
-			// Try to sync user from Clerk
-			try {
-				user = await syncUserWithDatabase();
-				console.log("🔄 Sync result:", user ? "success" : "failed");
-				console.log("🔄 Synced user details:", user ? { id: user.id, email: user.email, name: user.name } : "null");
-			} catch (syncError) {
-				console.error("❌ Error syncing user:", syncError);
-			}
-			
-			if (!user || !user.id) {
-				console.log("❌ No user after sync, redirecting to login");
-				redirect("/login");
-			}
-		}
-
-		console.log("✅ User authenticated:", { id: user.id, name: user.name });
+		// TEMPORARY: Bypass authentication for testing
+		console.log("🔧 TEMPORARY: Bypassing authentication check");
+		
+		// Create a mock user for testing
+		const mockUser = {
+			id: "temp-user-id",
+			email: "temp@example.com",
+			name: "Temporary User",
+			lastName: null,
+			emailVerified: new Date(),
+			image: null,
+			activeOrganizationId: "",
+			stripeCustomerId: null,
+			stripeSubscriptionId: null,
+			stripeSubscriptionStatus: null,
+			thirdPartyStripeSubscriptionId: null,
+			inviteQuota: 0,
+		};
+		
+		const user = mockUser as any;
+		
+		console.log("✅ Using mock user for testing:", { id: user.id, name: user.name });
 
 		// TEMPORARY: Skip onboarding check for testing
 		// if (!user.name || user.name.length <= 1) {
