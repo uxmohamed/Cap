@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import { JSDOM } from "jsdom";
 import { revalidatePath } from "next/cache";
 import { sanitizeFile } from "@/lib/sanitizeFile";
-// switched to Supabase storage signed uploads downstream
+import { createClient } from "@supabase/supabase-js";
 
 export async function uploadOrganizationIcon(
 	formData: FormData,
@@ -57,36 +57,36 @@ export async function uploadOrganizationIcon(
 	try {
 		const sanitizedFile = await sanitizeFile(file);
 
-		const bucket = await createBucketProvider();
+		const supabase = createClient(
+			serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+			serverEnv().SUPABASE_SERVICE_ROLE!
+		);
 
-		await bucket.putObject(fileKey, await sanitizedFile.bytes(), {
-			contentType: file.type,
-		});
+		const { error } = await supabase.storage
+			.from("capso-videos")
+			.upload(fileKey, await sanitizedFile.bytes(), {
+				contentType: file.type,
+				upsert: true,
+			});
 
-		// Construct the icon URL
-		let iconUrl;
-		if (serverEnv().CAP_AWS_BUCKET_URL) {
-			// If a custom bucket URL is defined, use it
-			iconUrl = `${serverEnv().CAP_AWS_BUCKET_URL}/${fileKey}`;
-		} else if (serverEnv().CAP_AWS_ENDPOINT) {
-			// For custom endpoints like MinIO
-			iconUrl = `${serverEnv().CAP_AWS_ENDPOINT}/${bucket.name}/${fileKey}`;
-		} else {
-			// Default AWS S3 URL format
-			iconUrl = `https://${bucket.name}.s3.${
-				serverEnv().CAP_AWS_REGION || "us-east-1"
-			}.amazonaws.com/${fileKey}`;
+		if (error) {
+			throw new Error(`Failed to upload icon: ${error.message}`);
 		}
+
+		// Get the public URL for the uploaded icon
+		const { data: urlData } = await supabase.storage
+			.from("capso-videos")
+			.getPublicUrl(fileKey);
 
 		// Update organization with new icon URL
 		await db()
 			.update(organizations)
-			.set({ iconUrl })
+			.set({ iconUrl: urlData.publicUrl })
 			.where(eq(organizations.id, organizationId));
 
 		revalidatePath("/dashboard/settings/organization");
 
-		return { success: true, iconUrl };
+		return { success: true, iconUrl: urlData.publicUrl };
 	} catch (error) {
 		console.error("Error uploading organization icon:", error);
 		throw new Error(error instanceof Error ? error.message : "Upload failed");

@@ -7,7 +7,7 @@ import { serverEnv } from "@cap/env";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { sanitizeFile } from "@/lib/sanitizeFile";
-// switched to Supabase storage signed uploads downstream
+import { createClient } from "@supabase/supabase-js";
 
 export async function uploadSpaceIcon(formData: FormData, spaceId: string) {
 	const user = await getCurrentUser();
@@ -52,46 +52,51 @@ export async function uploadSpaceIcon(formData: FormData, spaceId: string) {
 		space.organizationId
 	}/spaces/${spaceId}/icon-${Date.now()}.${fileExtension}`;
 
-	const bucket = await createBucketProvider();
+	const supabase = createClient(
+		serverEnv().NEXT_PUBLIC_SUPABASE_URL!,
+		serverEnv().SUPABASE_SERVICE_ROLE!
+	);
 
 	try {
 		// Remove previous icon if exists
 		if (space.iconUrl) {
-			// Try to extract the previous S3 key from the URL
+			// Try to extract the previous key from the URL
 			const prevKeyMatch = space.iconUrl.match(/organizations\/.+/);
 			if (prevKeyMatch && prevKeyMatch[0]) {
 				try {
-					await bucket.deleteObject(prevKeyMatch[0]);
+					await supabase.storage
+						.from("capso-videos")
+						.remove([prevKeyMatch[0]]);
 				} catch (e) {
 					// Log and continue
-					console.warn("Failed to delete old space icon from S3", e);
+					console.warn("Failed to delete old space icon from Supabase Storage", e);
 				}
 			}
 		}
 
 		const sanitizedFile = await sanitizeFile(file);
 
-		await bucket.putObject(fileKey, await sanitizedFile.bytes(), {
-			contentType: file.type,
-		});
+		const { error } = await supabase.storage
+			.from("capso-videos")
+			.upload(fileKey, await sanitizedFile.bytes(), {
+				contentType: file.type,
+				upsert: true,
+			});
 
-		// Construct the icon URL
-		let iconUrl;
-		if (serverEnv().CAP_AWS_BUCKET_URL) {
-			iconUrl = `${serverEnv().CAP_AWS_BUCKET_URL}/${fileKey}`;
-		} else if (serverEnv().CAP_AWS_ENDPOINT) {
-			iconUrl = `${serverEnv().CAP_AWS_ENDPOINT}/${bucket.name}/${fileKey}`;
-		} else {
-			iconUrl = `https://${bucket.name}.s3.${
-				serverEnv().CAP_AWS_REGION || "us-east-1"
-			}.amazonaws.com/${fileKey}`;
+		if (error) {
+			throw new Error(`Failed to upload icon: ${error.message}`);
 		}
 
+		// Get the public URL for the uploaded icon
+		const { data: urlData } = await supabase.storage
+			.from("capso-videos")
+			.getPublicUrl(fileKey);
+
 		// Update space with new icon URL
-		await db().update(spaces).set({ iconUrl }).where(eq(spaces.id, spaceId));
+		await db().update(spaces).set({ iconUrl: urlData.publicUrl }).where(eq(spaces.id, spaceId));
 
 		revalidatePath("/dashboard");
-		return { success: true, iconUrl };
+		return { success: true, iconUrl: urlData.publicUrl };
 	} catch (error) {
 		console.error("Error uploading space icon:", error);
 		throw new Error(error instanceof Error ? error.message : "Upload failed");
