@@ -100,10 +100,16 @@ export default async function CapsPage({
 }: {
 	searchParams: { [key: string]: string | string[] | undefined };
 }) {
+	console.log("📄 Caps page starting...");
+	
 	const user = await getCurrentUser();
+	console.log("📄 Caps page user:", user ? { id: user.id, name: user.name } : "null");
 
 	if (!user || !user.id) {
-		redirect("/login");
+		console.log("📄 Caps page: No user, would redirect to login");
+		// TEMPORARY: Don't redirect to prevent loops
+		// redirect("/login");
+		return <div>No user found - debugging mode</div>;
 	}
 
 	// TEMPORARY: Skip onboarding check for testing

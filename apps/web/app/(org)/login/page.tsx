@@ -8,10 +8,11 @@ import { SignIn } from "@clerk/nextjs";
 export const dynamic = "force-dynamic";
 
 export default async function LoginPage() {
-	const session = await getCurrentUser();
-	if (session) {
-		redirect("/dashboard");
-	}
+	// TEMPORARY: Disable redirect check to prevent loops during debugging
+	// const session = await getCurrentUser();
+	// if (session) {
+	// 	redirect("/dashboard");
+	// }
 	return (
 		<div className="flex relative justify-center items-center w-full h-screen bg-gray-2">
 			<div className="flex absolute top-10 left-10 gap-2 justify-center items-center transition-opacity hover:opacity-75">
