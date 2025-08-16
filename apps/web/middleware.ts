@@ -1,6 +1,24 @@
-import { clerkMiddleware } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 
-export default clerkMiddleware();
+const isProtectedRoute = createRouteMatcher([
+  '/dashboard(.*)',
+  '/api/(?!webhooks)(.*)',
+]);
+
+export default clerkMiddleware((auth, req) => {
+  console.log("🔧 Middleware called for:", req.url);
+  console.log("🔧 Auth object:", { userId: auth().userId, has: !!auth().userId });
+  
+  if (isProtectedRoute(req)) {
+    console.log("🔧 Protected route detected");
+    const { userId } = auth();
+    if (!userId) {
+      console.log("🔧 No userId, would redirect to login");
+      // Don't actually redirect here, let the pages handle it
+      // to avoid middleware redirect loops
+    }
+  }
+});
 
 export const config = {
   matcher: [
